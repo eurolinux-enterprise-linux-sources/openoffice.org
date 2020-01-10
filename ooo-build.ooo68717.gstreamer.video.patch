@@ -1121,9 +1121,9 @@ diff -u -p -r1.4 gtkobject.hxx
 + *
 + *  $RCSfile$
 + *
-+ *  $Revision: 7654 $
++ *  $Revision$
 + *
-+ *  last change: $Author: rodo $ $Date: 2006-09-19 09:24:25 +0100 (Tue, 19 Sep 2006) $
++ *  last change: $Author$ $Date$
 + *
 + *  The Contents of this file are made available subject to
 + *  the terms of GNU Lesser General Public License Version 2.1.
@@ -1207,9 +1207,9 @@ diff -u -p -r1.4 gtkobject.hxx
 + *
 + *  $RCSfile$
 + *
-+ *  $Revision: 7654 $
++ *  $Revision$
 + *
-+ *  last change: $Author: rodo $ $Date: 2006-09-19 09:24:25 +0100 (Tue, 19 Sep 2006) $
++ *  last change: $Author$ $Date$
 + *
 + *  The Contents of this file are made available subject to
 + *  the terms of GNU Lesser General Public License Version 2.1.
@@ -1454,9 +1454,9 @@ diff -u -p -r1.4 gtkobject.hxx
 + *
 + *  $RCSfile$
 + *
-+ *  $Revision: 7654 $
++ *  $Revision$
 + *
-+ *  last change: $Author: rodo $ $Date: 2006-09-19 09:24:25 +0100 (Tue, 19 Sep 2006) $
++ *  last change: $Author$ $Date$
 + *
 + *  The Contents of this file are made available subject to
 + *  the terms of GNU Lesser General Public License Version 2.1.
@@ -1535,9 +1535,9 @@ diff -u -p -r1.4 gtkobject.hxx
 + *
 + *  $RCSfile$
 + *
-+ *  $Revision: 7691 $
++ *  $Revision$
 + *
-+ *  last change: $Author: rodo $ $Date: 2006-09-22 14:01:46 +0100 (Fri, 22 Sep 2006) $
++ *  last change: $Author$ $Date$
 + *
 + *  The Contents of this file are made available subject to
 + *  the terms of GNU Lesser General Public License Version 2.1.
@@ -1652,9 +1652,9 @@ diff -u -p -r1.4 gtkobject.hxx
 + *
 + *  $RCSfile$
 + *
-+ *  $Revision: 7654 $
++ *  $Revision$
 + *
-+ *  last change: $Author: rodo $ $Date: 2006-09-19 09:24:25 +0100 (Tue, 19 Sep 2006) $
++ *  last change: $Author$ $Date$
 + *
 + *  The Contents of this file are made available subject to
 + *  the terms of GNU Lesser General Public License Version 2.1.
@@ -1729,9 +1729,9 @@ diff -u -p -r1.4 gtkobject.hxx
 + *
 + *  $RCSfile$
 + *
-+ *  $Revision: 7691 $
++ *  $Revision$
 + *
-+ *  last change: $Author: rodo $ $Date: 2006-09-22 14:01:46 +0100 (Fri, 22 Sep 2006) $
++ *  last change: $Author$ $Date$
 + *
 + *  The Contents of this file are made available subject to
 + *  the terms of GNU Lesser General Public License Version 2.1.
@@ -2360,9 +2360,9 @@ diff -u -p -r1.4 gtkobject.hxx
 + *
 + *  $RCSfile$
 + *
-+ *  $Revision: 7690 $
++ *  $Revision$
 + *
-+ *  last change: $Author: rodo $ $Date: 2006-09-22 13:53:20 +0100 (Fri, 22 Sep 2006) $
++ *  last change: $Author$ $Date$
 + *
 + *  The Contents of this file are made available subject to
 + *  the terms of GNU Lesser General Public License Version 2.1.
@@ -2483,9 +2483,9 @@ diff -u -p -r1.4 gtkobject.hxx
 + *
 + *  $RCSfile$
 + *
-+ *  $Revision: 7654 $
++ *  $Revision$
 + *
-+ *  last change: $Author: rodo $ $Date: 2006-09-19 09:24:25 +0100 (Tue, 19 Sep 2006) $
++ *  last change: $Author$ $Date$
 + *
 + *  The Contents of this file are made available subject to
 + *  the terms of GNU Lesser General Public License Version 2.1.
@@ -2597,9 +2597,9 @@ diff -u -p -r1.4 gtkobject.hxx
 + *
 + *  $RCSfile$
 + *
-+ *  $Revision: 7654 $
++ *  $Revision$
 + *
-+ *  last change: $Author: rodo $ $Date: 2006-09-19 09:24:25 +0100 (Tue, 19 Sep 2006) $
++ *  last change: $Author$ $Date$
 + *
 + *  The Contents of this file are made available subject to
 + *  the terms of GNU Lesser General Public License Version 2.1.
@@ -2965,9 +2965,9 @@ diff -u -p -r1.4 gtkobject.hxx
 + *
 + *  $RCSfile$
 + *
-+ *  $Revision: 7654 $
++ *  $Revision$
 + *
-+ *  last change: $Author: rodo $ $Date: 2006-09-19 09:24:25 +0100 (Tue, 19 Sep 2006) $
++ *  last change: $Author$ $Date$
 + *
 + *  The Contents of this file are made available subject to
 + *  the terms of GNU Lesser General Public License Version 2.1.
@@ -3087,9 +3087,9 @@ diff -u -p -r1.4 gtkobject.hxx
 +#
 +#   $RCSfile$
 +#
-+#   $Revision: 7654 $
++#   $Revision$
 +#
-+#   last change: $Author: rodo $ $Date: 2006-09-19 09:24:25 +0100 (Tue, 19 Sep 2006) $
++#   last change: $Author$ $Date$
 +#
 +#   The Contents of this file are made available subject to
 +#   the terms of GNU Lesser General Public License Version 2.1.

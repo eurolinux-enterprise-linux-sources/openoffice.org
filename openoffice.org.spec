@@ -33,7 +33,7 @@
 Summary:        OpenOffice.org comprehensive office suite
 Name:           openoffice.org
 Version:        3.2.1
-Release:        %{ooomilestone}.%{rh_rpm_release}%{?dist}.5
+Release:        %{ooomilestone}.%{rh_rpm_release}%{?dist}.7
 Epoch:          1
 License:        LGPLv3 and LGPLv2+ and BSD and (MPLv1.1 or GPLv2 or LGPLv2 or Netscape) and (CDDL or GPLv2) and Public Domain
 Group:          Applications/Productivity
@@ -157,6 +157,8 @@ Patch86: workspace.hb22.patch
 Patch87: workspace.os145.patch
 Patch88: workspace.impress208.patch
 Patch89: sftp.locking.patch
+Patch90: RHEL5.CVE-2012-1149.patch
+Patch91: RHEL5.CVE-2012-2334.patch
 
 %{!?python_sitearch: %global python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
 %define instdir %{_libdir}
@@ -1727,6 +1729,8 @@ cp -p %{SOURCE5} external/unowinreg/unowinreg.dll
 %patch87 -p1 -b .workspace.os145.patch
 %patch88 -p1 -b .workspace.impress208.patch
 %patch89 -p0 -b .sftp.locking.patch
+%patch90 -p1 -b .CVE-2012-1149.patch
+%patch91 -p1 -b .CVE-2012-2334.patch
 
 %build
 echo build start time is `date`, diskspace: `df -h . | tail -n 1`
@@ -2419,15 +2423,6 @@ cp -r psprint_config/configuration/ppds/SGENPRT.PS $RPM_BUILD_ROOT/%{basisinstdi
 # rhbz#452385 to auto have postgres in classpath if subsequently installed
 # rhbz#465664 to get lucene working for functional help
 sed -i -e "s#URE_MORE_JAVA_CLASSPATH_URLS.*#& file:///usr/share/java/lucene.jar file:///usr/share/java/lucene-contrib/lucene-analyzers.jar file:///usr/share/java/postgresql-jdbc.jar#" $RPM_BUILD_ROOT/%{basisinstdir}/program/fundamentalbasisrc
-
-%check
-source ./Linux*Env.Set.sh
-cd smoketestoo_native
-#don't prompt user to register
-sed -i -e "s#\$ARGV\[4\];#0;#g" config.pl
-#workaround flawed accessibility check
-sed -i -e "s#-nocrashreport#-nocrashreport -env:JFW_PLUGIN_DO_NOT_CHECK_ACCESSIBILITY=1#g" smoketest.pl
-SAL_USE_VCLPLUGIN="svp" build
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -4380,6 +4375,15 @@ fi
 %endif
 
 %changelog
+* Thu May 24 2012 David Tardon <dtardon@redhat.com> - 1:3.2.1-19.6.7
+- Resolves: CVE-2012-2334 Integer overflow leading to buffer overflow by
+  processing invalid Escher graphics records length in the Powerpoint
+  documents
+
+* Sun May 20 2012 David Tardon <dtardon@redhat.com> - 1:3.2.1-19.6.6
+- Resolves: CVE-2012-1149 Integer overflows, leading to heap-buffer
+  overflows in JPEG, PNG and BMP reader implementations
+
 * Thu Jan 20 2011 David Tardon <dtardon@redhat.com> - 1:3.2.1-19.6.5
 - Related: rhbz#671087 set right file permissions
 
