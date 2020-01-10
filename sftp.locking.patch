@@ -1,0 +1,163 @@
+diff -ru tools.orig/inc/tools/urlobj.hxx tools/inc/tools/urlobj.hxx
+--- tools.orig/inc/tools/urlobj.hxx	2011-01-12 09:37:03.634500858 +0000
++++ tools/inc/tools/urlobj.hxx	2011-01-12 09:56:40.261491749 +0000
+@@ -140,7 +140,8 @@
+     INET_PROT_VND_SUN_STAR_TDOC = 30,
+     INET_PROT_GENERIC = 31,
+     INET_PROT_SMB = 32,
+-	INET_PROT_END = 33
++	INET_PROT_SFTP = 33,
++	INET_PROT_END = 34
+ };
+ 
+ //============================================================================
+diff -ru tools.orig/source/fsys/urlobj.cxx tools/source/fsys/urlobj.cxx
+--- tools.orig/source/fsys/urlobj.cxx	2011-01-12 09:36:58.973497494 +0000
++++ tools/source/fsys/urlobj.cxx	2011-01-14 09:41:02.265107369 +0000
+@@ -431,6 +432,8 @@
+           false, false, false, true, false },
+         { "", "", 0, false, false, false, false, false, false, false, false },
+         { "smb", "smb://", 139, true, true, false, true, true, true, true,
++          true },
++        { "sftp", "sftp://", 22, true, true, false, true, true, true, true,
+           true } };
+ 
+ // static
+@@ -2166,7 +2207,8 @@
+ 			{ "vnd.sun.star.wfs:", 0, INET_PROT_VND_SUN_STAR_WFS,
+ 			  PrefixInfo::OFFICIAL },
+ 			{ "wfs:", "vnd.sun.star.wfs:", INET_PROT_VND_SUN_STAR_WFS,
+-			  PrefixInfo::ALIAS } };
++			  PrefixInfo::ALIAS },
++            { "sftp:", 0, INET_PROT_SFTP, PrefixInfo::OFFICIAL } };
+ 	PrefixInfo const * pFirst = aMap + 1;
+ 	PrefixInfo const * pLast = aMap + sizeof aMap / sizeof (PrefixInfo) - 1;
+ 	PrefixInfo const * pMatch = 0;
+@@ -3386,6 +3435,7 @@
+ 			break;
+ 
+         case INET_PROT_GENERIC:
++        case INET_PROT_SFTP:
+ 			while (pPos < pEnd && *pPos != nFragmentDelimiter)
+ 			{
+ 				EscapeType eEscapeType;
+diff -ru svtools.orig/source/misc/documentlockfile.cxx svtools/source/misc/documentlockfile.cxx
+--- svtools.orig/source/misc/documentlockfile.cxx	2011-01-12 09:37:05.661499455 +0000
++++ svtools/source/misc/documentlockfile.cxx	2011-01-12 09:53:36.663491848 +0000
+@@ -170,13 +170,11 @@
+ {
+     ::osl::MutexGuard aGuard( m_aMutex );
+ 
+-    uno::Reference< lang::XMultiServiceFactory > xFactory = ::comphelper::getProcessServiceFactory();
+-        uno::Reference< ::com::sun::star::ucb::XSimpleFileAccess > xSimpleFileAccess(
+-            xFactory->createInstance( ::rtl::OUString::createFromAscii("com.sun.star.ucb.SimpleFileAccess") ),
+-            uno::UNO_QUERY_THROW );
+-    
++    uno::Reference < ::com::sun::star::ucb::XCommandEnvironment > xEnv;
++    ::ucbhelper::Content aSourceContent( m_aURL, xEnv );
++ 
+     // the file can be opened readonly, no locking will be done  
+-    return xSimpleFileAccess->openFileRead( m_aURL );
++    return aSourceContent.openStream();
+ }
+ 
+ // ----------------------------------------------------------------------
+@@ -223,11 +221,10 @@
+       || !aFileData[LOCKFILE_USERURL_ID].equals( aNewEntry[LOCKFILE_USERURL_ID] ) )
+         throw io::IOException(); // not the owner, access denied
+ 
+-    uno::Reference< lang::XMultiServiceFactory > xFactory = ::comphelper::getProcessServiceFactory();
+-    uno::Reference< ::com::sun::star::ucb::XSimpleFileAccess > xSimpleFileAccess(
+-        xFactory->createInstance( ::rtl::OUString::createFromAscii("com.sun.star.ucb.SimpleFileAccess") ),
+-        uno::UNO_QUERY_THROW );
+-    xSimpleFileAccess->kill( m_aURL );
++    uno::Reference < ::com::sun::star::ucb::XCommandEnvironment > xEnv;
++    ::ucbhelper::Content aCnt(m_aURL, xEnv);
++    aCnt.executeCommand(rtl::OUString(RTL_CONSTASCII_USTRINGPARAM("delete")),
++        uno::makeAny(sal_Bool(sal_True)));
+ }
+ 
+ } // namespace svt
+diff -ru svtools.orig/source/misc/lockfilecommon.cxx svtools/source/misc/lockfilecommon.cxx
+--- svtools.orig/source/misc/lockfilecommon.cxx	2011-01-12 09:37:05.937501026 +0000
++++ svtools/source/misc/lockfilecommon.cxx	2011-01-12 09:53:55.902491808 +0000
+@@ -73,7 +73,7 @@
+     ::rtl::OUString aShareURLString = aDocURL.GetPartBeforeLastName();
+     aShareURLString += aPrefix;
+     aShareURLString += aDocURL.GetName();
+-    aShareURLString += ::rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "#" ) );
++    aShareURLString += ::rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "%23" ) ); // '#'
+     m_aURL = INetURLObject( aShareURLString ).GetMainURL( INetURLObject::NO_DECODE );
+ }
+ 
+diff -ru ucb.orig/source/ucp/gio/gio_content.cxx ucb/source/ucp/gio/gio_content.cxx
+--- ucb.orig/source/ucp/gio/gio_content.cxx	2011-01-12 09:37:37.223526003 +0000
++++ ucb/source/ucp/gio/gio_content.cxx	2011-01-12 09:55:29.811491906 +0000
+@@ -1011,7 +1011,7 @@
+     GError *pError = NULL;
+     GFileInfo *pInfo = getGFileInfo(xEnv);
+ 
+-    if ( g_file_info_has_attribute(pInfo, G_FILE_ATTRIBUTE_STANDARD_TYPE) &&
++    if ( pInfo && g_file_info_has_attribute(pInfo, G_FILE_ATTRIBUTE_STANDARD_TYPE) &&
+          g_file_info_get_file_type(pInfo) == G_FILE_TYPE_DIRECTORY )
+     {
+ #ifdef DEBUG
+@@ -1052,6 +1052,9 @@
+     }
+ }
+ 
++const GFileCopyFlags DEFAULT_COPYDATA_FLAGS =
++    static_cast<GFileCopyFlags>(G_FILE_COPY_OVERWRITE|G_FILE_COPY_TARGET_DEFAULT_PERMS);
++
+ void Content::transfer( const ucb::TransferInfo& aTransferInfo, const uno::Reference< ucb::XCommandEnvironment >& xEnv ) 
+     throw( uno::Exception )
+ {
+@@ -1069,7 +1072,7 @@
+     if (aTransferInfo.MoveData)
+         bSuccess = g_file_move(pSource, pDest, G_FILE_COPY_OVERWRITE, NULL, NULL, 0, &pError);
+     else
+-        bSuccess = g_file_copy(pSource, pDest, G_FILE_COPY_OVERWRITE, NULL, NULL, 0, &pError);
++        bSuccess = g_file_copy(pSource, pDest, DEFAULT_COPYDATA_FLAGS, NULL, NULL, 0, &pError);
+     g_object_unref(pSource);
+     g_object_unref(pDest);
+     if (!bSuccess)
+diff -ru sfx2.orig/source/doc/docfile.cxx sfx2/source/doc/docfile.cxx
+--- sfx2.orig/source/doc/docfile.cxx	2011-01-12 09:36:35.897523926 +0000
++++ sfx2/source/doc/docfile.cxx	2011-01-14 10:15:44.350107363 +0000
+@@ -1106,6 +1106,16 @@
+     return nResult;
+ }
+ 
++namespace
++{
++    bool isSuitableProtocolForLocking(const String & rLogicName)
++    {
++        INetURLObject aUrl( rLogicName );
++        INetProtocol eProt = aUrl.GetProtocol();
++        return eProt == INET_PROT_FILE || eProt == INET_PROT_SFTP;
++    }
++}
++
+ //------------------------------------------------------------------
+ sal_Bool SfxMedium::LockOrigFileOnDemand( sal_Bool bLoading, sal_Bool bNoUI )
+ {
+@@ -1167,8 +1177,8 @@
+         // do further checks only if the file not readonly in fs
+         if ( !bContentReadonly )
+         {
+-            // the special file locking should be used only for file URLs
+-            if ( ::utl::LocalFileHelper::IsLocalFile( aLogicName ) )
++            // the special file locking should be used only for suitable URLs
++            if ( isSuitableProtocolForLocking( aLogicName ) )
+             {
+ 
+                 // in case of storing the document should request the output before locking
+@@ -1181,7 +1191,7 @@
+                 sal_Int8 bUIStatus = LOCK_UI_NOLOCK;
+ 
+                 // check whether system file locking has been used, the default value is false
+-                sal_Bool bUseSystemLock = IsSystemFileLockingUsed();
++                sal_Bool bUseSystemLock = ::utl::LocalFileHelper::IsLocalFile( aLogicName ) && IsSystemFileLockingUsed();
+ 
+                 // TODO/LATER: This implementation does not allow to detect the system lock on saving here, actually this is no big problem
+                 // if system lock is used the writeable stream should be available

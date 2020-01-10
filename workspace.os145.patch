@@ -1,0 +1,122 @@
+
+# HG changeset patch
+# User sj <sj@openoffice.org>
+# Date 1290448824 -3600
+# Node ID 87199810ffc4e6b411da0ec2442aa278ab036e2e
+# Parent a44f9eb0f28654c982f7ebeb8c8d7eac1de5c79f
+os145: #b7001886# fixing small ppt import problem, improving png reader
+
+diff -r a44f9eb0f286 svx/source/svdraw/svdfppt.cxx
+--- a/svx/source/svdraw/svdfppt.cxx	Wed Dec 01 12:03:10 2010 +0100
++++ b/svx/source/svdraw/svdfppt.cxx	Wed Dec 01 12:06:40 2010 +0100
+@@ -1469,12 +1469,16 @@
+ 
+ 	if ( bOk )
+ 	{
+-		// PersistPtrs lesen (alle)
+-        nPersistPtrAnz = aUserEditAtom.nMaxPersistWritten + 1;	// 1 mehr, damit ich immer direkt indizieren kann
+-        pPersistPtr = new UINT32[ nPersistPtrAnz ];				// (die fangen naemlich eigentlich bei 1 an)
++        nPersistPtrAnz = aUserEditAtom.nMaxPersistWritten + 1;
++		if ( ( nPersistPtrAnz >> 2 ) > nStreamLen )		// sj: at least nPersistPtrAnz is not allowed to be greater than filesize
++			bOk = FALSE;								// (it should not be greater than the PPT_PST_PersistPtrIncrementalBlock, but
++														// we are reading this block later, so we do not have access yet)
++
++		if ( bOk && ( nPersistPtrAnz < ( SAL_MAX_UINT32 / sizeof( UINT32 ) ) ) )
++			pPersistPtr = new (std::nothrow) UINT32[ nPersistPtrAnz ];
+ 		if ( !pPersistPtr )
+ 			bOk = FALSE;
+-		else
++		if ( bOk )
+ 		{
+ 			memset( pPersistPtr, 0x00, nPersistPtrAnz * 4 );
+ 
+@@ -5086,6 +5090,10 @@
+             rIn >> nCharCount
+                 >> aParaPropSet.pParaSet->mnDepth;	// Einruecktiefe
+ 
++			aParaPropSet.pParaSet->mnDepth =		// taking care of about using not more than 9 outliner levels
++				std::min(sal_uInt16(8),
++					aParaPropSet.pParaSet->mnDepth);
++
+             nCharCount--;
+ 
+             rIn >> nMask;
+diff -r a44f9eb0f286 vcl/source/gdi/pngread.cxx
+--- a/vcl/source/gdi/pngread.cxx	Wed Dec 01 12:03:10 2010 +0100
++++ b/vcl/source/gdi/pngread.cxx	Wed Dec 01 12:06:40 2010 +0100
+@@ -411,7 +411,9 @@
+ 
+ 			case PNGCHUNK_IDAT :
+ 			{
+-				if ( !mbIDAT )		// the gfx is finished, but there may be left a zlibCRC of about 4Bytes
++				if ( !mpInflateInBuf )	// taking care that the header has properly been read
++					mbStatus = FALSE;
++				else if ( !mbIDAT )		// the gfx is finished, but there may be left a zlibCRC of about 4Bytes
+ 					ImplReadIDAT();
+ 			}
+ 			break;
+@@ -527,7 +529,7 @@
+ 	mbIDAT = mbAlphaChannel = mbTransparent = FALSE;
+ 	mbGrayScale = mbRGBTriple = FALSE;
+ 	mnTargetDepth = mnPngDepth;
+-	mnScansize = ( ( maOrigSize.Width() * mnPngDepth ) + 7 ) >> 3;
++	sal_uInt64 nScansize64 = ( ( static_cast< sal_uInt64 >( maOrigSize.Width() ) * mnPngDepth ) + 7 ) >> 3;
+ 
+ 	// valid color types are 0,2,3,4 & 6
+ 	switch ( mnColorType )
+@@ -557,7 +559,7 @@
+ 		case 2 :	// each pixel is an RGB triple
+ 		{
+ 			mbRGBTriple = TRUE;
+-			mnScansize *= 3;
++			nScansize64 *= 3;
+ 			switch ( mnPngDepth )
+ 			{
+ 				case 16 :			// we have to reduce the bitmap
+@@ -590,7 +592,7 @@
+ 
+ 		case 4 :	// each pixel is a grayscale sample followed by an alpha sample
+ 		{
+-			mnScansize *= 2;
++			nScansize64 *= 2;
+ 			mbAlphaChannel = TRUE;
+ 			switch ( mnPngDepth )
+ 			{
+@@ -608,7 +610,7 @@
+ 		case 6 :	// each pixel is an RGB triple followed by an alpha sample
+ 		{
+ 			mbRGBTriple = TRUE;
+-			mnScansize *= 4;
++			nScansize64 *= 4;
+ 			mbAlphaChannel = TRUE;
+ 			switch (mnPngDepth )
+ 			{
+@@ -626,16 +628,24 @@
+ 			return FALSE;
+ 	}
+ 
+-    mnBPP = mnScansize / maOrigSize.Width();
++    mnBPP = static_cast< sal_uInt32 >( nScansize64 / maOrigSize.Width() );
+     if ( !mnBPP )
+         mnBPP = 1;
+ 
+-    mnScansize++;       // each scanline includes one filterbyte
++    nScansize64++;       // each scanline includes one filterbyte
++
++	if ( nScansize64 > SAL_MAX_UINT32 )
++		return FALSE;
++
++	mnScansize = static_cast< sal_uInt32 >( nScansize64 );
+ 
+     // TODO: switch between both scanlines instead of copying
+-    mpInflateInBuf = new BYTE[ mnScansize ];
++	mpInflateInBuf = new (std::nothrow) BYTE[ mnScansize ];
+     mpScanCurrent = mpInflateInBuf;
+-    mpScanPrior = new BYTE[ mnScansize ];
++	mpScanPrior = new (std::nothrow) BYTE[ mnScansize ];
++
++	if ( !mpInflateInBuf || !mpScanPrior )
++		return FALSE;
+ 
+     // calculate target size from original size and the preview hint
+     if( rPreviewSizeHint.Width() || rPreviewSizeHint.Height() )

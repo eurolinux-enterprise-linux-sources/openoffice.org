@@ -1,0 +1,200 @@
+
+# HG changeset patch
+# User Mikhail Voytenko <mav@openoffice.org>
+# Date 1281431120 -7200
+# Node ID 1efb7f54e7188baa10e280652b0e4762f55025a9
+# Parent f185ef1693f702c5b0e4ae1439020c7e13b1d1e5
+mav56: #163253# tread invalid path segments correctly
+
+diff -r f185ef1693f7 comphelper/inc/comphelper/storagehelper.hxx
+--- a/comphelper/inc/comphelper/storagehelper.hxx	Tue Aug 03 14:12:26 2010 +0200
++++ b/comphelper/inc/comphelper/storagehelper.hxx	Wed Oct 13 12:37:34 2010 +0200
+@@ -158,6 +158,8 @@
+ 
+     static sal_Bool IsValidZipEntryFileName( const ::rtl::OUString& aName, sal_Bool bSlashAllowed );
+     static sal_Bool IsValidZipEntryFileName( const sal_Unicode *pChar, sal_Int32 nLength, sal_Bool bSlashAllowed );
++
++    static sal_Bool PathHasSegment( const ::rtl::OUString& aPath, const ::rtl::OUString& aSegment );
+ };
+ 
+ }
+diff -r f185ef1693f7 comphelper/source/misc/storagehelper.cxx
+--- a/comphelper/source/misc/storagehelper.cxx	Tue Aug 03 14:12:26 2010 +0200
++++ b/comphelper/source/misc/storagehelper.cxx	Wed Oct 13 12:37:34 2010 +0200
+@@ -431,5 +431,36 @@
+     return sal_True;
+ }
+ 
++// ----------------------------------------------------------------------
++sal_Bool OStorageHelper::PathHasSegment( const ::rtl::OUString& aPath, const ::rtl::OUString& aSegment )
++{
++    sal_Bool bResult = sal_False;
++    const sal_Int32 nPathLen = aPath.getLength();
++    const sal_Int32 nSegLen = aSegment.getLength();
++
++    if ( nSegLen && nPathLen >= nSegLen )
++    {
++        ::rtl::OUString aEndSegment( RTL_CONSTASCII_USTRINGPARAM( "/" ) );
++        aEndSegment += aSegment;
++
++        ::rtl::OUString aInternalSegment( aEndSegment );
++        aInternalSegment += ::rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "/" ) );
++
++        if ( aPath.indexOf( aInternalSegment ) >= 0 )
++            bResult = sal_True;
++
++        if ( !bResult && !aPath.compareTo( aSegment, nSegLen ) )
++        {
++            if ( nPathLen == nSegLen || aPath.getStr()[nSegLen] == (sal_Unicode)'/' )
++                bResult = sal_True;
++        }
++
++        if ( !bResult && nPathLen > nSegLen && aPath.copy( nPathLen - nSegLen - 1, nSegLen + 1 ).equals( aEndSegment ) )
++            bResult = sal_True;
++    }
++
++    return bResult;
+ }
+ 
++}
++
+diff -r f185ef1693f7 filter/source/xsltdialog/xmlfilterjar.cxx
+--- a/filter/source/xsltdialog/xmlfilterjar.cxx	Tue Aug 03 14:12:26 2010 +0200
++++ b/filter/source/xsltdialog/xmlfilterjar.cxx	Wed Oct 13 12:37:34 2010 +0200
+@@ -101,6 +101,10 @@
+ 
+ static Reference< XInterface > addFolder( Reference< XInterface >& xRootFolder, Reference< XSingleServiceFactory >& xFactory, const OUString& rName ) throw( Exception )
+ {
++    if ( rName.equals( OUString( RTL_CONSTASCII_USTRINGPARAM( ".." ) ) )
++      || rName.equals( OUString( RTL_CONSTASCII_USTRINGPARAM( "." ) ) ) )
++        throw lang::IllegalArgumentException();
++
+ 	Sequence< Any > aArgs(1);
+ 	aArgs[0] <<= (sal_Bool)sal_True;
+ 
+@@ -362,6 +366,10 @@
+ 	{
+ 		OUString szPackagePath( encodeZipUri( rURL.copy( sVndSunStarPackage.getLength() ) ) );
+ 
++        if ( ::comphelper::OStorageHelper::PathHasSegment( szPackagePath, OUString( RTL_CONSTASCII_USTRINGPARAM( ".." ) ) )
++          || ::comphelper::OStorageHelper::PathHasSegment( szPackagePath, OUString( RTL_CONSTASCII_USTRINGPARAM( "." ) ) ) )
++            throw lang::IllegalArgumentException();
++
+ 		if( xIfc->hasByHierarchicalName( szPackagePath ) )
+ 		{
+ 			Reference< XActiveDataSink > xFileEntry;
+diff -r f185ef1693f7 ucb/source/ucp/package/makefile.mk
+--- a/ucb/source/ucp/package/makefile.mk	Tue Aug 03 14:12:26 2010 +0200
++++ b/ucb/source/ucp/package/makefile.mk	Wed Oct 13 12:37:34 2010 +0200
+@@ -68,6 +68,7 @@
+ SHL1VERSIONMAP=exports.map
+ 
+ SHL1STDLIBS=\
++	$(COMPHELPERLIB) \
+ 	$(CPPUHELPERLIB) \
+ 	$(CPPULIB) \
+ 	$(SALLIB)  \
+diff -r f185ef1693f7 ucb/source/ucp/package/pkguri.cxx
+--- a/ucb/source/ucp/package/pkguri.cxx	Tue Aug 03 14:12:26 2010 +0200
++++ b/ucb/source/ucp/package/pkguri.cxx	Wed Oct 13 12:37:34 2010 +0200
+@@ -36,6 +36,7 @@
+ 
+ #include "rtl/ustrbuf.hxx"
+ #include "osl/diagnose.h"
++#include "comphelper/storagehelper.hxx"
+ 
+ #include "../inc/urihelper.hxx"
+ 
+@@ -85,7 +86,7 @@
+         if ( ( m_aUri.getLength() < PACKAGE_URL_SCHEME_LENGTH + 4 ) )
+         {
+             // error, but remember that we did a init().
+-            m_aPath = rtl::OUString::createFromAscii( "/" );
++            m_aPath = rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "/" ) );
+             return;
+         }
+ 
+@@ -100,7 +101,7 @@
+                 != sal_Unicode( '/' ) ) )
+         {
+             // error, but remember that we did a init().
+-            m_aPath = rtl::OUString::createFromAscii( "/" );
++            m_aPath = rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "/" ) );
+             return;
+         }
+ 
+@@ -128,8 +129,8 @@
+ 			{
+ 				m_aParam += 
+                     ( m_aParam.getLength() 
+-                      ? ::rtl::OUString::createFromAscii( "&purezip" )
+-                      : ::rtl::OUString::createFromAscii( "?purezip" ) );
++                      ? ::rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "&purezip" ) )
++                      : ::rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "?purezip" ) ) );
+ 			}
+ 
+             aPureUri = aPureUri.replaceAt( 0, 
+@@ -143,7 +144,7 @@
+                 // Only <scheme>:/// - Empty authority
+ 
+                 // error, but remember that we did a init().
+-                m_aPath = rtl::OUString::createFromAscii( "/" );
++                m_aPath = rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "/" ) );
+                 return;
+             }
+             else if ( nEnd == ( aPureUri.getLength() - 1 ) )
+@@ -154,7 +155,7 @@
+                     // Only <scheme>://// or <scheme>://<something>//
+ 
+                     // error, but remember that we did a init().
+-                    m_aPath = rtl::OUString::createFromAscii( "/" );
++                    m_aPath = rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "/" ) );
+                     return;
+                 }
+ 
+@@ -175,7 +176,7 @@
+                     nStart, aPureUri.getLength() - nStart, aNormPackage );
+                 m_aPackage 
+                     = ::ucb_impl::urihelper::decodeSegment( aNormPackage );
+-                m_aPath = rtl::OUString::createFromAscii( "/" );
++                m_aPath = rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "/" ) );
+ 				m_aUri = m_aUri.replaceAt( 0, 
+                                            ( nParam >= 0 ) 
+                                            ? nParam 
+@@ -193,16 +194,19 @@
+             {
+                 m_aPath = aPureUri.copy( nEnd + 1 );
+ 
+-                // Empty path segments or encoded slashes?
+-                if ( m_aPath.indexOf( 
+-                         rtl::OUString::createFromAscii( "//" ) ) != -1
+-                  || m_aPath.indexOf( 
+-                      rtl::OUString::createFromAscii( "%2F" ) ) != -1
+-                  || m_aPath.indexOf( 
+-                      rtl::OUString::createFromAscii( "%2f" ) ) != -1 )
++                // Unexpected sequences of characters:
++                // - empty path segments
++                // - encoded slashes
++                // - parent folder segments ".."
++                // - current folder segments "."
++                if ( m_aPath.indexOf( rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "//" ) ) ) != -1
++                  || m_aPath.indexOf( rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "%2F" ) ) ) != -1
++                  || m_aPath.indexOf( rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "%2f" ) ) ) != -1 
++                  || ::comphelper::OStorageHelper::PathHasSegment( m_aPath, ::rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( ".." ) ) )
++                  || ::comphelper::OStorageHelper::PathHasSegment( m_aPath, ::rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "." ) ) ) )
+                 {
+                     // error, but remember that we did a init().
+-                    m_aPath = rtl::OUString::createFromAscii( "/" );
++                    m_aPath = rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "/" ) );
+                     return;
+                 }
+ 
+@@ -239,7 +243,7 @@
+         else
+         {
+             // error, but remember that we did a init().
+-            m_aPath = rtl::OUString::createFromAscii( "/" );
++            m_aPath = rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "/" ) );
+         }
+     }
+ }

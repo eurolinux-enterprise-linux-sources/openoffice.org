@@ -1,0 +1,112 @@
+
+# HG changeset patch
+# User Christian Lippka ORACLE <christian.lippka@oracle.com>
+# Date 1294074253 -3600
+# Node ID 29638e31d01685727edd4569dd2438f914cdf538
+# Parent  a21d317bfa71988ffe2d6987083fd91f2f338800
+impress208: #164349# fixed possible heap overflow when reading manipulated TGA images
+
+diff -r a21d317bfa71 -r 29638e31d016 filter/source/graphicfilter/itga/itga.cxx
+--- a/goodies/source/filter.vcl/itga/itga.cxx	Mon Jan 03 17:59:57 2011 +0100
++++ b/goodies/source/filter.vcl/itga/itga.cxx	Mon Jan 03 18:04:13 2011 +0100
+@@ -338,6 +338,9 @@
+ 									nXCount = 0;
+ 									nY += nYAdd;
+ 									nYCount++;
++
++									if( nYCount >= mpFileHeader->nImageHeight )
++										return false; // invalid picture
+ 								}
+ 							}
+ 						}
+@@ -360,6 +363,9 @@
+ 									nXCount = 0;
+ 									nY += nYAdd;
+ 									nYCount++;
++
++									if( nYCount >= mpFileHeader->nImageHeight )
++										return false; // invalid picture
+ 								}
+ 							}
+ 						}
+@@ -387,6 +393,9 @@
+ 									nXCount = 0;
+ 									nY += nYAdd;
+ 									nYCount++;
++
++									if( nYCount >= mpFileHeader->nImageHeight )
++										return false; // invalid picture
+ 								}
+ 							}
+ 						}
+@@ -407,6 +416,9 @@
+ 									nXCount = 0;
+ 									nY += nYAdd;
+ 									nYCount++;
++
++									if( nYCount >= mpFileHeader->nImageHeight )
++										return false; // invalid picture
+ 								}
+ 							}
+ 						}
+@@ -440,6 +452,9 @@
+ 										nXCount = 0;
+ 										nY += nYAdd;
+ 										nYCount++;
++
++										if( nYCount >= mpFileHeader->nImageHeight )
++											return false; // invalid picture
+ 									}
+ 								}
+ 							}
+@@ -457,6 +472,9 @@
+ 										nXCount = 0;
+ 										nY += nYAdd;
+ 										nYCount++;
++
++										if( nYCount >= mpFileHeader->nImageHeight )
++											return false; // invalid picture
+ 									}
+ 								}
+ 							}
+@@ -483,6 +501,9 @@
+ 									nXCount = 0;
+ 									nY += nYAdd;
+ 									nYCount++;
++
++									if( nYCount >= mpFileHeader->nImageHeight )
++										return false; // invalid picture
+ 								}
+ 							}
+ 						}
+@@ -500,6 +521,9 @@
+ 									nXCount = 0;
+ 									nY += nYAdd;
+ 									nYCount++;
++
++									if( nYCount >= mpFileHeader->nImageHeight )
++										return false; // invalid picture
+ 								}
+ 							}
+ 						}
+@@ -528,6 +552,9 @@
+ 									nXCount = 0;
+ 									nY += nYAdd;
+ 									nYCount++;
++
++									if( nYCount >= mpFileHeader->nImageHeight )
++										return false; // invalid picture
+ 								}
+ 							}
+ 						}
+@@ -548,6 +575,9 @@
+ 									nXCount = 0;
+ 									nY += nYAdd;
+ 									nYCount++;
++
++									if( nYCount >= mpFileHeader->nImageHeight )
++										return false; // invalid picture
+ 								}
+ 							}
+ 						}
+

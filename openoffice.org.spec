@@ -33,7 +33,7 @@
 Summary:        OpenOffice.org comprehensive office suite
 Name:           openoffice.org
 Version:        3.2.1
-Release:        %{ooomilestone}.%{rh_rpm_release}%{?dist}
+Release:        %{ooomilestone}.%{rh_rpm_release}%{?dist}.5
 Epoch:          1
 License:        LGPLv3 and LGPLv2+ and BSD and (MPLv1.1 or GPLv2 or LGPLv2 or Netscape) and (CDDL or GPLv2) and Public Domain
 Group:          Applications/Productivity
@@ -152,6 +152,11 @@ Patch81: workspace.gtkfpicker9.patch
 Patch82: openoffice.org-3.3.0.ooo112421.vcl.defaultmonitor.patch
 Patch83: openoffice.org-3.3.0.ooo112516.sw.avoid.divbyzero.patch
 Patch84: workspace.findbar01.patch
+Patch85: workspace.mav56.patch
+Patch86: workspace.hb22.patch
+Patch87: workspace.os145.patch
+Patch88: workspace.impress208.patch
+Patch89: sftp.locking.patch
 
 %{!?python_sitearch: %global python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
 %define instdir %{_libdir}
@@ -1717,6 +1722,11 @@ cp -p %{SOURCE5} external/unowinreg/unowinreg.dll
 %patch82 -p0 -b .ooo112421.vcl.defaultmonitor.patch
 %patch83 -p0 -b .ooo112516.sw.avoid.divbyzero.patch
 %patch84 -p1 -b .workspace.findbar01.patch
+%patch85 -p1 -b .workspace.mav56.patch
+%patch86 -p1 -b .workspace.hb22.patch
+%patch87 -p1 -b .workspace.os145.patch
+%patch88 -p1 -b .workspace.impress208.patch
+%patch89 -p0 -b .sftp.locking.patch
 
 %build
 echo build start time is `date`, diskspace: `df -h . | tail -n 1`
@@ -4370,6 +4380,35 @@ fi
 %endif
 
 %changelog
+* Thu Jan 20 2011 David Tardon <dtardon@redhat.com> - 1:3.2.1-19.6.5
+- Related: rhbz#671087 set right file permissions
+
+* Thu Jan 20 2011 David Tardon <dtardon@redhat.com> - 1:3.2.1-19.6.4
+- Resolves: rhbz#671087 file locks are not created with gvfs-sftp
+  volumes with OpenOffice.org
+
+* Thu Jan 06 2011 David Tardon <dtardon@redhat.com> - 1:3.2.1-19.6.3
+- Resolves: rhbz#642200 openoffice.org various flaws
+- CVE-2010-4643 heap based buffer overflow when parsing TGA files
+
+* Wed Dec 01 2010 David Tardon <dtardon@redhat.com> - 1:3.2.1-19.6.2
+- Resolves: rhbz#642200 openoffice.org various flaws
+- CVE-2010-4253 heap based buffer overflow in PPT import
+
+* Wed Oct 13 2010 David Tardon <dtardon@redhat.com> - 1:3.2.1-19.6.1
+- Resolves: rhbz#642200 openoffice.org various flaws
+- CVE-2010-3450 directory traversal flaws in handling of XSLT jar filter
+  descriptions and OXT extension files
+- CVE-2010-3451 Array index error by insecure parsing of broken rtf
+  tables
+- CVE-2010-3452 Integer signedness error (crash) by processing certain
+  RTF tags
+- CVE-2010-3453 Heap-based buffer overflow by processing *.doc files
+  with WW8 list styles with specially-crafted count of list levels
+- CVE-2010-3454 Array index error by scanning document typography
+  information of certain *.doc files
+- CVE-2010-3689 soffice insecure LD_LIBRARY_PATH setting
+
 * Tue Aug 03 2010 Caolán McNamara <caolanm@redhat.com> - 1:3.2.1-19.6
 - Resolves: rhbz#620367 Wrong position of text cursor when editing in a Calc cell
 

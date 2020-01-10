@@ -1,0 +1,296 @@
+import workspace.hb22.patch
+
+diff -r f05c22a99382 binfilter/bf_sw/source/core/docnode/sw_ndtbl.cxx
+--- a/binfilter/bf_sw/source/core/docnode/sw_ndtbl.cxx	Tue Aug 10 11:05:20 2010 +0200
++++ b/binfilter/bf_sw/source/core/docnode/sw_ndtbl.cxx	Wed Oct 13 12:56:23 2010 +0200
+@@ -273,7 +273,13 @@
+         SwEndNode* pEndNd = new SwEndNode( aEndIdx, *pSttNd );
+ 
+         pPrvBox = new SwTableBox( pBoxFmt, *pSttNd, pLine );
+-        pLine->GetTabBoxes().C40_INSERT( SwTableBox, pPrvBox, nInsPos + n );
++        
++        SwTableBoxes & rTabBoxes = pLine->GetTabBoxes();
++        USHORT nRealInsPos = nInsPos + n;        
++        if (nRealInsPos > rTabBoxes.Count())
++            nRealInsPos = rTabBoxes.Count();
++
++        rTabBoxes.C40_INSERT( SwTableBox, pPrvBox, nRealInsPos );
+ 
+         if( NO_NUMBERING == pTxtColl->GetOutlineLevel()
+  //FEATURE::CONDCOLL
+diff -r f05c22a99382 desktop/scripts/soffice.sh
+--- a/desktop/scripts/soffice.sh	Tue Aug 10 11:05:20 2010 +0200
++++ b/desktop/scripts/soffice.sh	Wed Oct 13 12:56:23 2010 +0200
+@@ -95,7 +95,7 @@
+     my_path=`"$sd_prog/../basis-link/ure-link/bin/javaldx" $BOOTSTRAPVARS \
+         "-env:INIFILENAME=vnd.sun.star.pathname:$sd_prog/redirectrc"`
+     if [ -n "$my_path" ] ; then
+-        LD_LIBRARY_PATH=$my_path${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}
++        LD_LIBRARY_PATH=$my_path${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+         export LD_LIBRARY_PATH
+     fi
+ fi
+diff -r f05c22a99382 desktop/scripts/unopkg.sh
+--- a/desktop/scripts/unopkg.sh	Tue Aug 10 11:05:20 2010 +0200
++++ b/desktop/scripts/unopkg.sh	Wed Oct 13 12:56:23 2010 +0200
+@@ -84,7 +84,7 @@
+     my_path=`"$sd_prog/../basis-link/ure-link/bin/javaldx" $BOOTSTRAPVARS \
+         "-env:INIFILENAME=vnd.sun.star.pathname:$sd_prog/redirectrc"`
+     if [ -n "$my_path" ] ; then
+-        LD_LIBRARY_PATH=$my_path${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}
++        LD_LIBRARY_PATH=$my_path${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+         export LD_LIBRARY_PATH
+     fi
+ fi
+diff -r f05c22a99382 padmin/source/spadmin.sh
+--- a/padmin/source/spadmin.sh	Tue Aug 10 11:05:20 2010 +0200
++++ b/padmin/source/spadmin.sh	Wed Oct 13 12:56:23 2010 +0200
+@@ -57,7 +57,7 @@
+     my_path=`"$sd_prog/../basis-link/ure-link/bin/javaldx" $BOOTSTRAPVARS \
+         "-env:INIFILENAME=vnd.sun.star.pathname:$sd_prog/redirectrc"`
+     if [ -n "$my_path" ] ; then
+-        LD_LIBRARY_PATH=$my_path${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}
++        LD_LIBRARY_PATH=$my_path${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+         export LD_LIBRARY_PATH
+     fi
+ fi
+diff -r f05c22a99382 pyuno/zipcore/python.sh
+--- a/pyuno/zipcore/python.sh	Tue Aug 10 11:05:20 2010 +0200
++++ b/pyuno/zipcore/python.sh	Wed Oct 13 12:56:23 2010 +0200
+@@ -44,7 +44,7 @@
+ export PATH
+ 
+ # Set LD_LIBRARY_PATH so that "import pyuno" finds libpyuno.so:
+-LD_LIBRARY_PATH=$sd_prog/../basis-link/program:$sd_prog/../basis-link/ure-link/lib${LD_LIBRARY_PATH+:$LD_LIBRARY_PATH}
++LD_LIBRARY_PATH=$sd_prog/../basis-link/program:$sd_prog/../basis-link/ure-link/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+ export LD_LIBRARY_PATH
+ 
+ # Set UNO_PATH so that "officehelper.bootstrap()" can find soffice executable:
+diff -r f05c22a99382 solenv/bin/checkdll.sh
+--- a/solenv/bin/checkdll.sh	Tue Aug 10 11:05:20 2010 +0200
++++ b/solenv/bin/checkdll.sh	Wed Oct 13 12:56:23 2010 +0200
+@@ -42,7 +42,7 @@
+ 	    -L) shift; option=$1;;
+ 	    --) break;;
+ 	esac
+-	case "${libpath+X}" in
++	case "${libpath:+X}" in
+ 	    X) libpath=$libpath:$option;;
+ 	    *) libpath=$option;;
+ 	esac
+@@ -51,22 +51,22 @@
+     shift  # remove the trailing ---
+ 
+     case `uname -s` in
+-    Darwin) case "${DYLD_LIBRARY_PATH+X}" in
++    Darwin) case "${DYLD_LIBRARY_PATH:+X}" in
+ 	    X) DYLD_LIBRARY_PATH=$libpath:$DYLD_LIBRARY_PATH;;
+ 	    *) DYLD_LIBRARY_PATH=$libpath;;
+         esac
+         export DYLD_LIBRARY_PATH;;
+-    IRIX) case "${LD_LIBRARYN32_PATH+X}" in
++    IRIX) case "${LD_LIBRARYN32_PATH:+X}" in
+ 	    X) LD_LIBRARYN32_PATH=$libpath:$LD_LIBRARYN32_PATH;;
+ 	    *) LD_LIBRARYN32_PATH=$libpath;;
+ 	esac
+         export LD_LIBRARYN32_PATH;;
+-    IRIX64) case "${LD_LIBRARYN32_PATH+X}" in
++    IRIX64) case "${LD_LIBRARYN32_PATH:+X}" in
+ 	    X) LD_LIBRARYN32_PATH=$libpath:$LD_LIBRARYN32_PATH;;
+ 	    *) LD_LIBRARYN32_PATH=$libpath;;
+ 	esac
+         export LD_LIBRARYN32_PATH;;
+-	*)  case "${LD_LIBRARY_PATH+X}" in
++	*)  case "${LD_LIBRARY_PATH:+X}" in
+ 	    X) LD_LIBRARY_PATH=$libpath:$LD_LIBRARY_PATH;;
+ 	    *) LD_LIBRARY_PATH=$libpath;;
+         esac
+diff -r f05c22a99382 solenv/bin/localize
+--- a/solenv/bin/localize	Tue Aug 10 11:05:20 2010 +0200
++++ b/solenv/bin/localize	Wed Oct 13 12:56:23 2010 +0200
+@@ -7,9 +7,9 @@
+ # localize.pl calls localize_sl in solver bin directory which depends on dynamic
+ # libraries in solver lib directory but has no correct RPATH (or equivalent):
+ if [ "${OS?}" = MACOSX ]; then
+-    export DYLD_LIBRARY_PATH=${DYLD_LIBRARY_PATH+${DYLD_LIBRARY_PATH}:}${SOLARVERSION?}/${INPATH?}/lib${UPDMINOREXT}
++    export DYLD_LIBRARY_PATH=${DYLD_LIBRARY_PATH:+${DYLD_LIBRARY_PATH}:}${SOLARVERSION?}/${INPATH?}/lib${UPDMINOREXT}
+ else
+-    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH+${LD_LIBRARY_PATH}:}${SOLARVERSION?}/${INPATH?}/lib${UPDMINOREXT}
++    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}${SOLARVERSION?}/${INPATH?}/lib${UPDMINOREXT}
+ fi
+ 
+ if [ x${SOLARVER}x = xx -o x${UPDMINOR}x = xx  ]; then
+diff -r f05c22a99382 solenv/bin/rpm-wrapper
+--- a/solenv/bin/rpm-wrapper	Tue Aug 10 11:05:20 2010 +0200
++++ b/solenv/bin/rpm-wrapper	Wed Oct 13 12:56:23 2010 +0200
+@@ -35,9 +35,9 @@
+ set -e
+ if [ "$OUTPATH" = "unxlngi6" ]
+ then
+-LD_LIBRARY_PATH=${LD_LIBRARY_PATH+${LD_LIBRARY_PATH}:}${LIBRARY_PATH?} \
++LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}${LIBRARY_PATH?} \
+     ${BUILD_TOOLS?}/rpmbuild "$@"
+ else
+-LD_LIBRARY_PATH=${LD_LIBRARY_PATH+${LD_LIBRARY_PATH}:}${COMPATH?}/lib \
++LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}${COMPATH?}/lib \
+     ${BUILD_TOOLS?}/rpm "$@"
+ fi
+diff -r f05c22a99382 solenv/bin/soirpm.sh
+--- a/solenv/bin/soirpm.sh	Tue Aug 10 11:05:20 2010 +0200
++++ b/solenv/bin/soirpm.sh	Wed Oct 13 12:56:23 2010 +0200
+@@ -28,5 +28,5 @@
+ LIBRPMBUILD=$(find ${COMPATH} -name 'librpmbuild-4.1*' -print)
+ # echo $(dirname $LIBRPMBUILD)
+ LD_LIBRARY_PATH=$(dirname ${LIBRPMBUILD}) ${BUILD_TOOLS?}/rpm "$@"
+-# LD_LIBRARY_PATH=${LD_LIBRARY_PATH+${LD_LIBRARY_PATH}:}${COMPATH?}/lib \
++# LD_LIBRARY_PATH=${LD_LIBRARY_PATH:+${LD_LIBRARY_PATH}:}${COMPATH?}/lib \
+ # ${BUILD_TOOLS?}/rpm "$@"
+diff -r f05c22a99382 svx/source/gengal/gengal.sh
+--- a/svx/source/gengal/gengal.sh	Tue Aug 10 11:05:20 2010 +0200
++++ b/svx/source/gengal/gengal.sh	Wed Oct 13 12:56:23 2010 +0200
+@@ -62,27 +62,27 @@
+ sd_platform=`uname -s`
+ case $sd_platform in
+   AIX)
+-    LIBPATH=${sd_prog}${LIBPATH+:${LIBPATH}}
++    LIBPATH=${sd_prog}${LIBPATH:+:${LIBPATH}}
+     export LIBPATH
+     ;;
+ 
+   Darwin)
+-    DYLD_LIBRARY_PATH=${sd_prog}${DYLD_LIBRARY_PATH+:${DYLD_LIBRARY_PATH}}
++    DYLD_LIBRARY_PATH=${sd_prog}${DYLD_LIBRARY_PATH:+:${DYLD_LIBRARY_PATH}}
+     export DYLD_LIBRARY_PATH
+     ;;
+ 
+   HP-UX)
+-    SHLIB_PATH=${sd_prog}:/usr/openwin/lib${SHLIB_PATH+:${SHLIB_PATH}}
++    SHLIB_PATH=${sd_prog}:/usr/openwin/lib${SHLIB_PATH:+:${SHLIB_PATH}}
+     export SHLIB_PATH
+     ;;
+ 
+   IRIX*)
+-    LD_LIBRARYN32_PATH=${sd_prog}${LD_LIBRARYN32_PATH+:${LD_LIBRARYN32_PATH}}
++    LD_LIBRARYN32_PATH=${sd_prog}${LD_LIBRARYN32_PATH:+:${LD_LIBRARYN32_PATH}}
+     export LD_LIBRARYN32_PATH
+     ;;
+ 
+   *)
+-    LD_LIBRARY_PATH=${sd_prog}${LD_LIBRARY_PATH+:${LD_LIBRARY_PATH}}
++    LD_LIBRARY_PATH=${sd_prog}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+     export LD_LIBRARY_PATH
+     ;;
+ esac
+diff -r f05c22a99382 sw/source/core/doc/number.cxx
+--- a/sw/source/core/doc/number.cxx	Tue Aug 10 11:05:20 2010 +0200
++++ b/sw/source/core/doc/number.cxx	Wed Oct 13 12:56:23 2010 +0200
+@@ -101,8 +101,15 @@
+ 
+ const SwNumFmt* SwNumRule::GetNumFmt( USHORT i ) const
+ {
+-	ASSERT_ID( i < MAXLEVEL && eRuleType < RULE_END, ERR_NUMLEVEL);
+-	return aFmts[ i ];
++    const SwNumFmt * pResult = NULL;
++
++    ASSERT_ID( i < MAXLEVEL && eRuleType < RULE_END, ERR_NUMLEVEL);
++    if ( i < MAXLEVEL && eRuleType < RULE_END)
++    {
++        pResult = aFmts[ i ];
++    }
++
++    return pResult;
+ }
+ 
+ // --> OD 2008-07-08 #i91400#
+diff -r f05c22a99382 sw/source/core/docnode/ndtbl.cxx
+--- a/sw/source/core/docnode/ndtbl.cxx	Tue Aug 10 11:05:20 2010 +0200
++++ b/sw/source/core/docnode/ndtbl.cxx	Wed Oct 13 12:56:23 2010 +0200
+@@ -335,7 +335,13 @@
+ 		new SwEndNode( aEndIdx, *pSttNd );
+ 
+ 		pPrvBox = new SwTableBox( pBoxFmt, *pSttNd, pLine );
+-		pLine->GetTabBoxes().C40_INSERT( SwTableBox, pPrvBox, nInsPos + n );
++
++        SwTableBoxes & rTabBoxes = pLine->GetTabBoxes();
++        USHORT nRealInsPos = nInsPos + n;        
++        if (nRealInsPos > rTabBoxes.Count())
++            nRealInsPos = rTabBoxes.Count();
++
++        rTabBoxes.C40_INSERT( SwTableBox, pPrvBox, nRealInsPos );
+ 
+ 		//if( NO_NUMBERING == pTxtColl->GetOutlineLevel()//#outline level,zhaojianwei
+ 		if( ! pTxtColl->IsAssignedToListLevelOfOutlineStyle()//<-end,zhaojianwei
+diff -r f05c22a99382 sw/source/filter/rtf/rtfnum.cxx
+--- a/sw/source/filter/rtf/rtfnum.cxx	Tue Aug 10 11:05:20 2010 +0200
++++ b/sw/source/filter/rtf/rtfnum.cxx	Wed Oct 13 12:56:23 2010 +0200
+@@ -806,8 +806,8 @@
+ 		// suche die Rule - steht unter Nummer 3
+ 		nListNo = 3;
+ 		bContinus = FALSE;
+-		nLevel = MAXLEVEL <= nTokenValue ? MAXLEVEL - 1
+-										 : BYTE( nTokenValue - 1 );
++		nLevel = MAXLEVEL <= (unsigned long) nTokenValue ? MAXLEVEL - 1
++			: (!nTokenValue ? 0 : BYTE( nTokenValue - 1 ));
+ 	}
+ 	else
+ 	{
+@@ -815,9 +815,9 @@
+ 		{
+ 		case RTF_PNLVL:			nListNo = 3;
+ 								bContinus = FALSE;
+-								nLevel = MAXLEVEL <= nTokenValue
++								nLevel = MAXLEVEL <= (unsigned long) nTokenValue
+ 													? MAXLEVEL - 1
+-													: BYTE( nTokenValue-1 );
++                                    : (!nTokenValue ? 0 : BYTE( nTokenValue-1 ));
+ 								break;
+ 
+ 		case RTF_PNLVLBODY:
+diff -r f05c22a99382 sw/source/filter/ww8/ww8par3.cxx
+--- a/sw/source/filter/ww8/ww8par3.cxx	Tue Aug 10 11:05:20 2010 +0200
++++ b/sw/source/filter/ww8/ww8par3.cxx	Wed Oct 13 12:56:23 2010 +0200
+@@ -1402,7 +1402,9 @@
+                         pLFOInfo->pNumRule->Set(aLFOLVL.nLevel, aNumFmt);
+                     }
+                     bLVLOk = true;
+-                    pLFOInfo->maOverrides[aLFOLVL.nLevel] = aLFOLVL;
++
++                    if (nMaxLevel > aLFOLVL.nLevel)
++                        pLFOInfo->maOverrides[aLFOLVL.nLevel] = aLFOLVL;
+                 }
+                 if( !bLVLOk )
+                     break;
+diff -r f05c22a99382 sw/source/filter/ww8/ww8scan.cxx
+--- a/sw/source/filter/ww8/ww8scan.cxx	Tue Aug 10 11:05:20 2010 +0200
++++ b/sw/source/filter/ww8/ww8scan.cxx	Wed Oct 13 12:56:23 2010 +0200
+@@ -7178,8 +7178,16 @@
+     for (i=0; i < nMaxLeading; ++i)
+         rgxchLPunct[i] = Get_Short(pData);
+ 
+-    rgxchFPunct[cchFollowingPunct]=0;
+-    rgxchLPunct[cchLeadingPunct]=0;
++    if (cchFollowingPunct >= 0 && cchFollowingPunct < nMaxFollowing)
++        rgxchFPunct[cchFollowingPunct]=0;
++    else    
++        rgxchFPunct[nMaxFollowing - 1]=0;
++
++    if (cchLeadingPunct >= 0 && cchLeadingPunct < nMaxLeading)
++        rgxchLPunct[cchLeadingPunct]=0;
++    else
++        rgxchLPunct[nMaxLeading - 1]=0;
++
+ }
+ 
+ void WW8DopTypography::WriteToMem(BYTE *&pData) const
+diff -r f05c22a99382 ure/source/startup.sh
+--- a/ure/source/startup.sh	Tue Aug 10 11:05:20 2010 +0200
++++ b/ure/source/startup.sh	Wed Oct 13 12:56:23 2010 +0200
+@@ -39,7 +39,7 @@
+ if [ -x "${epath}/javaldx" ] ; then
+     jpath=`"${epath}/javaldx" $my_envargs`
+     if [ -n "${jpath}" ]; then
+-        LD_LIBRARY_PATH=${jpath}${LD_LIBRARY_PATH+:${LD_LIBRARY_PATH}}
++        LD_LIBRARY_PATH=${jpath}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+         export LD_LIBRARY_PATH
+     fi
+ fi
