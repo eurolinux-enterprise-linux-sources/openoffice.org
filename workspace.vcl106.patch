@@ -1,0 +1,80 @@
+--- vcl.orig/unx/gtk/a11y/atkutil.cxx	2009-10-05 08:06:01.000000000 +0100
++++ vcl/unx/gtk/a11y/atkutil.cxx	2009-10-05 08:10:07.000000000 +0100
+@@ -221,7 +221,7 @@
+                 if( accessibility::AccessibleStateType::FOCUSED == nState )
+                     atk_wrapper_focus_tracker_notify_when_idle( getAccessible(aEvent) );
+             }
+-            catch(lang::IndexOutOfBoundsException e)
++            catch(const lang::IndexOutOfBoundsException &e)
+             {
+                 g_warning("Focused object has invalid index in parent");
+             }
+@@ -577,7 +577,14 @@
+         if( g_aWindowList.find(pWindow) == g_aWindowList.end() )
+         {
+             g_aWindowList.insert(pWindow);
+-            aDocumentFocusListener->attachRecursive(xAccessible, xContext, xStateSet);
++            try
++            {
++                aDocumentFocusListener->attachRecursive(xAccessible, xContext, xStateSet);
++            }
++            catch( const uno::Exception &e )
++            {
++                g_warning( "Exception caught processing focus events" );
++            }
+         }
+ #ifdef ENABLE_TRACING
+         else
+@@ -608,7 +615,7 @@
+             }
+         }
+     }
+-    catch( uno::Exception e )
++    catch( const uno::Exception &e )
+     {
+         g_warning( "Exception caught processing menu highlight events" );
+     }
+diff -ru vcl.orig/source/glyphs/gcach_ftyp.cxx vcl/source/glyphs/gcach_ftyp.cxx
+--- vcl.orig/source/glyphs/gcach_ftyp.cxx	2009-09-30 09:56:24.000000000 +0100
++++ vcl/source/glyphs/gcach_ftyp.cxx	2009-09-30 14:27:39.000000000 +0100
+@@ -2509,10 +2509,17 @@
+                         {
+                             const USHORT nGlyph0 = GetUShort( pCoverage+0 );
+                             const USHORT nGlyph1 = GetUShort( pCoverage+2 );
+-                            const USHORT nCovIdx = GetUShort( pCoverage+4 );
++                            const USHORT nStartCoverageIndex = GetUShort( pCoverage+4 );
+                             pCoverage += 6;
+                             for( USHORT j = nGlyph0; j <= nGlyph1; ++j )
+-                                aSubstVector.push_back( GlyphSubst( j + nCovIdx, 0 ) );
++                            {
++                                //http://www.microsoft.com/typography/otspec/CHAPTER2.htm
++                                //Coverage Index (GlyphID) = StartCoverageIndex + GlyphID - Start GlyphID.
++                                //e.g. http://qa.openoffice.org/issues/show_bug.cgi?id=92671
++                                DBG_ASSERT(aSubstVector.size() == nStartCoverageIndex + j - nGlyph0, "coverage index mismatch");
++                                (void)nStartCoverageIndex;
++                                aSubstVector.push_back( GlyphSubst( j, 0 ) );
++                            }
+                         }
+                     }
+                     break;
+diff -ru vcl.orig/source/fontsubset/gsub.cxx vcl/source/fontsubset/gsub.cxx
+--- vcl.orig/source/fontsubset/gsub.cxx	2009-09-30 12:46:58.000000000 +0100
++++ vcl/source/fontsubset/gsub.cxx	2009-09-30 14:31:17.000000000 +0100
+@@ -282,9 +282,15 @@
+                     {
+                         const USHORT nGlyph0 = NEXT_UShort( pCoverage );
+                         const USHORT nGlyph1 = NEXT_UShort( pCoverage );
+-                        const USHORT nCovIdx = NEXT_UShort( pCoverage );
++                        const USHORT nStartCoverageIndex = NEXT_UShort( pCoverage );
+                         for( USHORT j = nGlyph0; j <= nGlyph1; ++j )
+-                            aSubstVector.push_back( GlyphSubst( j + nCovIdx, 0 ) );
++                        {
++                            //http://www.microsoft.com/typography/otspec/CHAPTER2.htm
++                            //Coverage Index (GlyphID) = StartCoverageIndex + GlyphID - Start GlyphID.
++                            //e.g. #i92671#
++                            (void)nStartCoverageIndex;
++                            aSubstVector.push_back( GlyphSubst( j, 0 ) );
++                        }
+                     }
+                 }
+                 break;

@@ -1,0 +1,434 @@
+diff -r b9c9dd11b0a1 -r ab0345143841 binfilter/bf_svtools/source/filter.vcl/jpeg/makefile.mk
+--- a/binfilter/bf_svtools/source/filter.vcl/jpeg/makefile.mk	Thu Jan 07 15:14:24 2010 +0100
++++ b/binfilter/bf_svtools/source/filter.vcl/jpeg/makefile.mk	Thu Jan 14 13:47:52 2010 +0000
+@@ -39,10 +39,6 @@
+ .INCLUDE :  settings.mk
+ INC+= -I$(PRJ)$/inc$/bf_svtools
+ 
+-.IF "$(SYSTEM_JPEG)" == "YES"
+-CFLAGS+=-DSYSTEM_JPEG
+-.ENDIF
+-
+ # --- Files --------------------------------------------------------
+ 
+ SLOFILES=	$(SLO)$/svt_jpegc.obj \
+diff -r b9c9dd11b0a1 -r ab0345143841 binfilter/bf_svtools/source/filter.vcl/jpeg/svt_jpeg.cxx
+--- a/binfilter/bf_svtools/source/filter.vcl/jpeg/svt_jpeg.cxx	Thu Jan 07 15:14:24 2010 +0100
++++ b/binfilter/bf_svtools/source/filter.vcl/jpeg/svt_jpeg.cxx	Thu Jan 14 13:47:52 2010 +0000
+@@ -32,22 +32,16 @@
+ 
+ #include <tools/solar.h>
+ 
+-#ifdef SYSTEM_JPEG
+-#define INT32 JPEG_INT32
+-#endif
+-
+ extern "C"
+ {
++	#define INT32 JPEG_INT32
+ 	#include "stdio.h"
+ 	#include "jpeg.h"
+ 	#include "jpeglib.h"
+ 	#include "jerror.h"
++	#undef INT32
+ }
+ 
+-#ifdef SYSTEM_JPEG
+-#undef INT32
+-#endif
+-
+ #define _JPEGPRIVATE
+ #include <vcl/bmpacc.hxx>
+ #include "jpeg.hxx"
+@@ -401,11 +395,7 @@
+ 
+ 		if(
+ 			( bGray && ( BMP_FORMAT_8BIT_PAL == nFormat ) ) ||
+-#ifndef SYSTEM_JPEG
+-			( !bGray && ( BMP_FORMAT_24BIT_TC_BGR == nFormat ) )
+-#else
+ 			( !bGray && ( BMP_FORMAT_24BIT_TC_RGB == nFormat ) )
+-#endif
+ 		  )
+ 		{
+ 			pBmpBuf = pAcc->GetBuffer();
+@@ -468,15 +458,9 @@
+ 
+ 				for( long nX = 0L; nX < nWidth; nX++ )
+ 				{
+-#ifndef SYSTEM_JPEG
+-					aColor.SetBlue( *pTmp++ );
+-					aColor.SetGreen( *pTmp++ );
+-					aColor.SetRed( *pTmp++ );
+-#else
+ 					aColor.SetRed( *pTmp++ );
+ 					aColor.SetGreen( *pTmp++ );
+ 					aColor.SetBlue( *pTmp++ );
+-#endif
+ 					pAcc->SetPixel( nY, nX, aColor );
+ 				}
+ 			}
+@@ -656,15 +640,9 @@
+ 				for( long nX = 0L; nX < nWidth; nX++ )
+ 				{
+ 					aColor = pAcc->GetPaletteColor( (BYTE) pAcc->GetPixel( nY, nX ) );
+-#ifndef SYSTEM_JPEG
+-					*pTmp++ = aColor.GetBlue();
+-					*pTmp++ = aColor.GetGreen();
+-					*pTmp++ = aColor.GetRed();
+-#else
+ 					*pTmp++ = aColor.GetRed();
+ 					*pTmp++ = aColor.GetGreen();
+ 					*pTmp++ = aColor.GetBlue();
+-#endif
+ 				}
+ 			}
+ 			else
+@@ -672,15 +650,9 @@
+ 				for( long nX = 0L; nX < nWidth; nX++ )
+ 				{
+ 					aColor = pAcc->GetPixel( nY, nX );
+-#ifndef SYSTEM_JPEG
+-					*pTmp++ = aColor.GetBlue();
+-					*pTmp++ = aColor.GetGreen();
+-					*pTmp++ = aColor.GetRed();
+-#else
+ 					*pTmp++ = aColor.GetRed();
+ 					*pTmp++ = aColor.GetGreen();
+ 					*pTmp++ = aColor.GetBlue();
+-#endif
+ 				}
+ 			}
+ 
+@@ -715,11 +687,7 @@
+ 
+ 	if( pAcc )
+ 	{
+-#ifndef SYSTEM_JPEG
+-		bNative = ( pAcc->GetScanlineFormat() == BMP_FORMAT_24BIT_TC_BGR );
+-#else
+ 		bNative = ( pAcc->GetScanlineFormat() == BMP_FORMAT_24BIT_TC_RGB );
+-#endif
+ 
+ 		if( !bNative )
+ 			pBuffer = new BYTE[ AlignedWidth4Bytes( pAcc->Width() * 24L ) ];
+diff -r b9c9dd11b0a1 -r ab0345143841 binfilter/bf_svtools/source/filter.vcl/jpeg/svt_jpegc.c
+--- a/binfilter/bf_svtools/source/filter.vcl/jpeg/svt_jpegc.c	Thu Jan 07 15:14:24 2010 +0100
++++ b/binfilter/bf_svtools/source/filter.vcl/jpeg/svt_jpegc.c	Thu Jan 14 13:47:52 2010 +0000
+@@ -35,6 +35,9 @@
+ #include "jerror.h"
+ #include "jpeg.h"
+ 
++#include "rtl/alloc.h"
++#include "osl/diagnose.h"
++
+ struct my_error_mgr
+ {
+ 	struct jpeg_error_mgr pub;
+@@ -80,6 +83,9 @@
+     long                            nWidth;
+     long                            nHeight;
+     long                            nAlignedWidth;
++    JSAMPLE * range_limit;
++    HPBYTE pScanLineBuffer = NULL;
++    long nScanLineBufferComponents = 0;
+     // declare bDecompCreated volatile because of gcc
+     // warning: variable 'bDecompCreated' might be clobbered by `longjmp' or `vfork'
+ 	volatile long					bDecompCreated = 0;
+@@ -105,8 +111,12 @@
+ 	cinfo.output_gamma = 1.0;
+ 	cinfo.raw_data_out = FALSE;
+ 	cinfo.quantize_colors = FALSE;
+-	if ( cinfo.jpeg_color_space != JCS_GRAYSCALE )
+-		cinfo.out_color_space = JCS_RGB;
++	if ( cinfo.jpeg_color_space == JCS_YCbCr )
++	    cinfo.out_color_space = JCS_RGB;
++	else if ( cinfo.jpeg_color_space == JCS_YCCK )
++	    cinfo.out_color_space = JCS_CMYK;
++
++	OSL_ASSERT(cinfo.out_color_space == JCS_CMYK || cinfo.out_color_space == JCS_GRAYSCALE || cinfo.out_color_space == JCS_RGB);
+ 
+     /* change scale for preview import */
+     if( nPreviewWidth || nPreviewHeight )
+@@ -150,6 +160,14 @@
+     aCreateBitmapParam.bGray = cinfo.output_components == 1;
+ 	pDIB = CreateBitmap( pJPEGReader, &aCreateBitmapParam );
+     nAlignedWidth = aCreateBitmapParam.nAlignedWidth;
++    range_limit=cinfo.sample_range_limit;
++
++	if ( cinfo.out_color_space == JCS_CMYK )
++	{
++    		nScanLineBufferComponents = cinfo.output_width * 4;
++		pScanLineBuffer = rtl_allocateMemory( nScanLineBufferComponents );
++	}
++
+ 	if( pDIB )
+ 	{
+ 		if( aCreateBitmapParam.bTopDown )
+@@ -162,17 +180,37 @@
+ 
+ 		for ( *pLines = 0; *pLines < nHeight; (*pLines)++ )
+ 		{
++		    if (pScanLineBuffer!=NULL) { // in other words cinfo.out_color_space == JCS_CMYK
++			int i;
++			int j;
++			jpeg_read_scanlines( &cinfo, (JSAMPARRAY) &pScanLineBuffer, 1 );
++			// convert CMYK to RGB
++			for( i=0, j=0; i < nScanLineBufferComponents; i+=4, j+=3 )
++			{
++			    int c_=255-pScanLineBuffer[i+0];
++			    int m_=255-pScanLineBuffer[i+1];
++			    int y_=255-pScanLineBuffer[i+2];
++			    int k_=255-pScanLineBuffer[i+3];
++			    pTmp[j+0]=range_limit[ 255L - ( c_ + k_ ) ];
++			    pTmp[j+1]=range_limit[ 255L - ( m_ + k_ ) ];
++			    pTmp[j+2]=range_limit[ 255L - ( y_ + k_ ) ];
++			}
++		    } else {
+ 			jpeg_read_scanlines( &cinfo, (JSAMPARRAY) &pTmp, 1 );
+-
+-			/* PENDING ??? */
+-			if ( cinfo.err->msg_code == 113 )
+-				break;
+-
+-			pTmp += nAlignedWidth;
++		    }
++		    /* PENDING ??? */
++		    if ( cinfo.err->msg_code == 113 )
++			break;
++		    
++		    pTmp += nAlignedWidth;
+ 		}
+ 	}
+ 
+ 	jpeg_finish_decompress( &cinfo );
++	if (pScanLineBuffer!=NULL) {
++	    rtl_freeMemory( pScanLineBuffer );
++	    pScanLineBuffer=NULL;
++	}
+ 
+ Exit:
+ 
+diff -r b9c9dd11b0a1 -r ab0345143841 solenv/inc/libs.mk
+--- a/solenv/inc/libs.mk	Thu Jan 07 15:14:24 2010 +0100
++++ b/solenv/inc/libs.mk	Thu Jan 14 13:47:52 2010 +0000
+@@ -209,7 +209,7 @@
+ #i34482# Blackdown/Sun jdk is in the libsearch patch and has a libjpeg :-(
+ .IF "$(OS)" == "FREEBSD"
+ JPEG3RDLIB=/usr/local/lib/libjpeg.so
+-.ELIF "$(CPUNAME)" == "X86_64"
++.ELIF "$(CPUNAME)" == "X86_64" || "$(CPUNAME)" == "S390X" || "$(CPUNAME)" == "POWERPC64"
+ JPEG3RDLIB=/usr/lib64/libjpeg.so
+ .ELSE
+ JPEG3RDLIB=/usr/lib/libjpeg.so
+diff -r b9c9dd11b0a1 -r ab0345143841 svtools/source/filter.vcl/jpeg/jpeg.cxx
+--- a/svtools/source/filter.vcl/jpeg/jpeg.cxx	Thu Jan 07 15:14:24 2010 +0100
++++ b/svtools/source/filter.vcl/jpeg/jpeg.cxx	Thu Jan 14 13:47:52 2010 +0000
+@@ -33,22 +33,16 @@
+ 
+ #include <tools/solar.h>
+ 
+-#ifdef SYSTEM_JPEG
+-#define INT32 JPEG_INT32
+-#endif
+-
+ extern "C"
+ {
++	#define INT32 JPEG_INT32
+ 	#include "stdio.h"
+ 	#include "jpeg.h"
+ 	#include "jpeglib.h"
+ 	#include "jerror.h"
++	#undef INT32
+ }
+ 
+-#ifdef SYSTEM_JPEG
+-#undef INT32
+-#endif
+-
+ #define _JPEGPRIVATE
+ #include <vcl/bmpacc.hxx>
+ #include "jpeg.hxx"
+@@ -399,11 +393,7 @@
+ 
+ 		if(
+ 			( bGray && ( BMP_FORMAT_8BIT_PAL == nFormat ) ) ||
+-#ifndef SYSTEM_JPEG
+-			( !bGray && ( BMP_FORMAT_24BIT_TC_BGR == nFormat ) )
+-#else
+ 			( !bGray && ( BMP_FORMAT_24BIT_TC_RGB == nFormat ) )
+-#endif
+ 		  )
+ 		{
+ 			pBmpBuf = pAcc->GetBuffer();
+@@ -466,15 +456,9 @@
+ 
+ 				for( long nX = 0L; nX < nWidth; nX++ )
+ 				{
+-#ifndef SYSTEM_JPEG
+-					aColor.SetBlue( *pTmp++ );
+-					aColor.SetGreen( *pTmp++ );
+-					aColor.SetRed( *pTmp++ );
+-#else
+ 					aColor.SetRed( *pTmp++ );
+ 					aColor.SetGreen( *pTmp++ );
+ 					aColor.SetBlue( *pTmp++ );
+-#endif
+ 					pAcc->SetPixel( nY, nX, aColor );
+ 				}
+ 			}
+@@ -654,15 +638,9 @@
+ 				for( long nX = 0L; nX < nWidth; nX++ )
+ 				{
+ 					aColor = pAcc->GetPaletteColor( (BYTE) pAcc->GetPixel( nY, nX ) );
+-#ifndef SYSTEM_JPEG
+-					*pTmp++ = aColor.GetBlue();
+-					*pTmp++ = aColor.GetGreen();
+-					*pTmp++ = aColor.GetRed();
+-#else
+ 					*pTmp++ = aColor.GetRed();
+ 					*pTmp++ = aColor.GetGreen();
+ 					*pTmp++ = aColor.GetBlue();
+-#endif
+ 				}
+ 			}
+ 			else
+@@ -670,15 +648,9 @@
+ 				for( long nX = 0L; nX < nWidth; nX++ )
+ 				{
+ 					aColor = pAcc->GetPixel( nY, nX );
+-#ifndef SYSTEM_JPEG
+-					*pTmp++ = aColor.GetBlue();
+-					*pTmp++ = aColor.GetGreen();
+-					*pTmp++ = aColor.GetRed();
+-#else
+ 					*pTmp++ = aColor.GetRed();
+ 					*pTmp++ = aColor.GetGreen();
+ 					*pTmp++ = aColor.GetBlue();
+-#endif
+ 				}
+ 			}
+ 
+@@ -713,11 +685,7 @@
+ 
+ 	if( pAcc )
+ 	{
+-#ifndef SYSTEM_JPEG
+-		bNative = ( pAcc->GetScanlineFormat() == BMP_FORMAT_24BIT_TC_BGR );
+-#else
+ 		bNative = ( pAcc->GetScanlineFormat() == BMP_FORMAT_24BIT_TC_RGB );
+-#endif
+ 
+ 		if( !bNative )
+ 			pBuffer = new BYTE[ AlignedWidth4Bytes( pAcc->Width() * 24L ) ];
+diff -r b9c9dd11b0a1 -r ab0345143841 svtools/source/filter.vcl/jpeg/jpegc.c
+--- a/svtools/source/filter.vcl/jpeg/jpegc.c	Thu Jan 07 15:14:24 2010 +0100
++++ b/svtools/source/filter.vcl/jpeg/jpegc.c	Thu Jan 14 13:47:52 2010 +0000
+@@ -34,7 +34,8 @@
+ #include "jpeglib.h"
+ #include "jerror.h"
+ #include "jpeg.h"
+-
++#include "rtl/alloc.h"
++#include "osl/diagnose.h"
+ 
+ struct my_error_mgr
+ {
+@@ -81,6 +82,9 @@
+     long                            nWidth;
+     long                            nHeight;
+     long                            nAlignedWidth;
++    JSAMPLE * range_limit;
++    HPBYTE pScanLineBuffer = NULL;
++    long nScanLineBufferComponents = 0;
+     // declare bDecompCreated volatile because of gcc
+     // warning: variable 'bDecompCreated' might be clobbered by `longjmp' or `vfork'
+ 	volatile long					bDecompCreated = 0;
+@@ -106,8 +110,12 @@
+ 	cinfo.output_gamma = 1.0;
+ 	cinfo.raw_data_out = FALSE;
+ 	cinfo.quantize_colors = FALSE;
+-	if ( cinfo.jpeg_color_space != JCS_GRAYSCALE )
+-		cinfo.out_color_space = JCS_RGB;
++	if ( cinfo.jpeg_color_space == JCS_YCbCr )
++	    cinfo.out_color_space = JCS_RGB;
++	else if ( cinfo.jpeg_color_space == JCS_YCCK )
++	    cinfo.out_color_space = JCS_CMYK;
++
++	OSL_ASSERT(cinfo.out_color_space == JCS_CMYK || cinfo.out_color_space == JCS_GRAYSCALE || cinfo.out_color_space == JCS_RGB);
+ 
+     /* change scale for preview import */
+     if( nPreviewWidth || nPreviewHeight )
+@@ -151,6 +159,14 @@
+     aCreateBitmapParam.bGray = cinfo.output_components == 1;
+ 	pDIB = CreateBitmap( pJPEGReader, &aCreateBitmapParam );
+     nAlignedWidth = aCreateBitmapParam.nAlignedWidth;
++    range_limit=cinfo.sample_range_limit;
++
++	if ( cinfo.out_color_space == JCS_CMYK )
++	{
++    		nScanLineBufferComponents = cinfo.output_width * 4;
++		pScanLineBuffer = rtl_allocateMemory( nScanLineBufferComponents );
++	}
++
+ 	if( pDIB )
+ 	{
+ 		if( aCreateBitmapParam.bTopDown )
+@@ -163,17 +179,37 @@
+ 
+ 		for ( *pLines = 0; *pLines < nHeight; (*pLines)++ )
+ 		{
++		    if (pScanLineBuffer!=NULL) { // in other words cinfo.out_color_space == JCS_CMYK
++			int i;
++			int j;
++			jpeg_read_scanlines( &cinfo, (JSAMPARRAY) &pScanLineBuffer, 1 );
++			// convert CMYK to RGB
++			for( i=0, j=0; i < nScanLineBufferComponents; i+=4, j+=3 )
++			{
++			    int c_=255-pScanLineBuffer[i+0];
++			    int m_=255-pScanLineBuffer[i+1];
++			    int y_=255-pScanLineBuffer[i+2];
++			    int k_=255-pScanLineBuffer[i+3];
++			    pTmp[j+0]=range_limit[ 255L - ( c_ + k_ ) ];
++			    pTmp[j+1]=range_limit[ 255L - ( m_ + k_ ) ];
++			    pTmp[j+2]=range_limit[ 255L - ( y_ + k_ ) ];
++			}
++		    } else {
+ 			jpeg_read_scanlines( &cinfo, (JSAMPARRAY) &pTmp, 1 );
+-
+-			/* PENDING ??? */
+-			if ( cinfo.err->msg_code == 113 )
+-				break;
+-
+-			pTmp += nAlignedWidth;
++		    }
++		    /* PENDING ??? */
++		    if ( cinfo.err->msg_code == 113 )
++			break;
++		    
++		    pTmp += nAlignedWidth;
+ 		}
+ 	}
+ 
+ 	jpeg_finish_decompress( &cinfo );
++	if (pScanLineBuffer!=NULL) {
++	    rtl_freeMemory( pScanLineBuffer );
++	    pScanLineBuffer=NULL;
++	}
+ 
+ Exit:
+ 
+diff -r b9c9dd11b0a1 -r ab0345143841 svtools/source/filter.vcl/jpeg/makefile.mk
+--- a/svtools/source/filter.vcl/jpeg/makefile.mk	Thu Jan 07 15:14:24 2010 +0100
++++ b/svtools/source/filter.vcl/jpeg/makefile.mk	Thu Jan 14 13:47:52 2010 +0000
+@@ -39,10 +39,6 @@
+ .INCLUDE :  settings.mk
+ .INCLUDE :  $(PRJ)$/util$/svt.pmk
+ 
+-.IF "$(SYSTEM_JPEG)" == "YES"
+-CFLAGS+=-DSYSTEM_JPEG
+-.ENDIF
+-
+ # --- Files --------------------------------------------------------
+ 
+ SLOFILES=	$(SLO)$/jpegc.obj \

@@ -1,0 +1,83 @@
+diff -ru wizards.orig/com/sun/star/wizards/db/DBMetaData.java wizards/com/sun/star/wizards/db/DBMetaData.java
+--- wizards.orig/com/sun/star/wizards/db/DBMetaData.java	2009-07-30 14:28:39.000000000 +0100
++++ wizards/com/sun/star/wizards/db/DBMetaData.java	2009-07-30 14:33:22.000000000 +0100
+@@ -748,11 +748,11 @@
+         }
+     }
+ 
+-    public boolean supportsCoreSQLGrammar()
++    public boolean supportsPrimaryKey()
+     {
+         try
+         {
+-            return xDBMetaData.supportsCoreSQLGrammar();
++            return xDBMetaData.supportsMinimumSQLGrammar() || xDBMetaData.supportsCoreSQLGrammar();
+         }
+         catch (SQLException e)
+         {
+diff -ru wizards.orig/com/sun/star/wizards/table/TableWizard.java wizards/com/sun/star/wizards/table/TableWizard.java
+--- wizards.orig/com/sun/star/wizards/table/TableWizard.java	2009-07-30 14:28:39.000000000 +0100
++++ wizards/com/sun/star/wizards/table/TableWizard.java	2009-07-30 14:29:50.000000000 +0100
+@@ -250,7 +250,7 @@
+     {
+         curScenarioSelector = new ScenarioSelector(this, this.curTableDescriptor, slblFields, slblSelFields);
+         curFieldFormatter = new FieldFormatter(this, curTableDescriptor);
+-        if (this.curTableDescriptor.supportsCoreSQLGrammar())
++        if (this.curTableDescriptor.supportsPrimaryKey())
+         {
+             curPrimaryKeyHandler = new PrimaryKeyHandler(this, curTableDescriptor);
+         }
+@@ -264,7 +264,7 @@
+         boolean bTableCreated = false;
+         String schemaname = curFinalizer.getSchemaName();
+         String catalogname = curFinalizer.getCatalogName();
+-        if (curTableDescriptor.supportsCoreSQLGrammar())
++        if (curTableDescriptor.supportsPrimaryKey())
+         {
+             String[] keyfieldnames = curPrimaryKeyHandler.getPrimaryKeyFields(curTableDescriptor);
+             if (keyfieldnames != null)
+@@ -359,7 +359,7 @@
+         int i = 0;
+         i = insertRoadmapItem(0, true, m_oResource.getResText(UIConsts.RID_TABLE + 2), SOMAINPAGE);
+         i = insertRoadmapItem(i, false, m_oResource.getResText(UIConsts.RID_TABLE + 3), SOFIELDSFORMATPAGE);
+-        if (this.curTableDescriptor.supportsCoreSQLGrammar())
++        if (this.curTableDescriptor.supportsPrimaryKey())
+         {
+             i = insertRoadmapItem(i, false, m_oResource.getResText(UIConsts.RID_TABLE + 4), SOPRIMARYKEYPAGE);
+         }
+diff -ru dbaccess.orig/source/ui/misc/WCopyTable.cxx dbaccess/source/ui/misc/WCopyTable.cxx
+--- dbaccess.orig/source/ui/misc/WCopyTable.cxx	2009-07-30 12:58:32.000000000 +0100
++++ dbaccess/source/ui/misc/WCopyTable.cxx	2009-07-30 14:18:18.000000000 +0100
+@@ -1364,7 +1364,7 @@
+ 		try
+ 		{
+ 			Reference< XDatabaseMetaData > xMetaData( _rxConnection->getMetaData(), UNO_QUERY_THROW );
+-			bSupports = xMetaData->supportsCoreSQLGrammar();
++			bSupports = xMetaData->supportsCoreSQLGrammar() || xMetaData->supportsMinimumSQLGrammar();
+ 		}
+ 		catch(const Exception&)
+ 		{
+diff -ru dbaccess.orig/source/ui/tabledesign/TableController.cxx dbaccess/source/ui/tabledesign/TableController.cxx
+--- dbaccess.orig/source/ui/tabledesign/TableController.cxx	2009-07-30 12:58:31.000000000 +0100
++++ dbaccess/source/ui/tabledesign/TableController.cxx	2009-07-30 14:18:18.000000000 +0100
+@@ -1119,7 +1119,7 @@
+ 	}
+ 	if(!bFoundPKey)
+ 	{
+-		if(_bNew && xMetaData.is() && xMetaData->supportsCoreSQLGrammar())
++		if(_bNew && xMetaData.is() && (xMetaData->supportsCoreSQLGrammar() || xMetaData->supportsMinimumSQLGrammar()))
+ 		{
+             String sTitle(ModuleRes(STR_TABLEDESIGN_NO_PRIM_KEY_HEAD));
+ 		    String sMsg(ModuleRes(STR_TABLEDESIGN_NO_PRIM_KEY));
+diff -ru dbaccess.orig/source/ui/tabledesign/TEditControl.cxx dbaccess/source/ui/tabledesign/TEditControl.cxx
+--- dbaccess.orig/source/ui/tabledesign/TEditControl.cxx	2009-07-30 12:58:31.000000000 +0100
++++ dbaccess/source/ui/tabledesign/TEditControl.cxx	2009-07-30 14:18:18.000000000 +0100
+@@ -1527,7 +1527,7 @@
+ 		Reference<XConnection> xCon = rController.getConnection();
+ 
+ 		Reference< XDatabaseMetaData> xMetaData = xCon.is() ? xCon->getMetaData() : Reference< XDatabaseMetaData>();
+-		if(!xMetaData.is() || !xMetaData->supportsCoreSQLGrammar())
++		if(!xMetaData.is() || (!xMetaData->supportsCoreSQLGrammar() && !xMetaData->supportsMinimumSQLGrammar()))
+ 			return sal_False; // no primary keys allowed
+ 
+ 	}

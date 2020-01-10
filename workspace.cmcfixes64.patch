@@ -1,0 +1,27 @@
+diff -r 28ba3ecf6c22 -r db44de918518 bridges/source/cpp_uno/shared/vtablefactory.cxx
+--- a/bridges/source/cpp_uno/shared/vtablefactory.cxx	Mon Oct 12 09:26:03 2009 +0000
++++ b/bridges/source/cpp_uno/shared/vtablefactory.cxx	Mon Oct 12 13:29:25 2009 +0000
+@@ -272,7 +272,7 @@
+         char *tmpfname = new char[aTmpName.getLength()+1];
+         strncpy(tmpfname, aTmpName.getStr(), aTmpName.getLength()+1);
+         if ((block.fd = mkstemp(tmpfname)) == -1)
+-          perror("creation of executable memory area failed");
++            perror("creation of executable memory area failed");
+         if (block.fd == -1)
+         {
+             delete[] tmpfname;
+@@ -280,7 +280,13 @@
+         }
+         unlink(tmpfname);
+         delete[] tmpfname;
+-        ftruncate(block.fd, block.size);
++        if (ftruncate(block.fd, block.size) == -1)
++        {
++            perror("truncation of executable memory area failed");
++            close(block.fd);
++            block.fd = -1;
++            break;
++        }
+         block.start = mmap(NULL, block.size, PROT_READ | PROT_WRITE, MAP_SHARED, block.fd, 0);
+         if (block.start== MAP_FAILED) {
+             block.start = 0;

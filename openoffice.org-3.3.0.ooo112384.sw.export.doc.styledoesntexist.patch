@@ -1,0 +1,11 @@
+--- sw/source/filter/ww8/ww8atr.cxx	2010-06-14 14:19:56.000000000 +0100
++++ sw/source/filter/ww8/ww8atr.cxx	2010-06-14 14:20:18.000000000 +0100
+@@ -2298,7 +2298,7 @@
+                                 if( sStyle.Len() )
+                                 {
+                                     SwTxtFmtColl* pColl = GetExport().pDoc->FindTxtFmtCollByName(sStyle);
+-                                    if (!pColl->IsAssignedToListLevelOfOutlineStyle() || pColl->GetAssignedOutlineStyleLevel() < nTOXLvl)
++                                    if (!pColl || !pColl->IsAssignedToListLevelOfOutlineStyle() || pColl->GetAssignedOutlineStyleLevel() < nTOXLvl)
+                                     {
+                                         if( sTOption.Len() )
+                                             sTOption += ',';

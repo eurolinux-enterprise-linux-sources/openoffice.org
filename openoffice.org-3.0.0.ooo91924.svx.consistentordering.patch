@@ -1,0 +1,19 @@
+--- openoffice.org.orig/svx/source/cui/optgdlg.cxx	2008-08-29 08:29:20.000000000 +0100
++++ openoffice.org/svx/source/cui/optgdlg.cxx	2008-08-29 08:31:35.000000000 +0100
+@@ -795,11 +795,11 @@
+         switch( Application::GetSettings().GetStyleSettings().GetAutoSymbolsStyle() )
+         {
+             case STYLE_SYMBOLS_DEFAULT:     aAutoStr += aIconStyleLB.GetEntry( 1 ); break;
+-            case STYLE_SYMBOLS_INDUSTRIAL:  aAutoStr += aIconStyleLB.GetEntry( 2 ); break;
+-            case STYLE_SYMBOLS_CRYSTAL:     aAutoStr += aIconStyleLB.GetEntry( 3 ); break;
+-            case STYLE_SYMBOLS_TANGO:       aAutoStr += aIconStyleLB.GetEntry( 4 ); break;
+-            case STYLE_SYMBOLS_CLASSIC:     aAutoStr += aIconStyleLB.GetEntry( 5 ); break;
+-            case STYLE_SYMBOLS_HICONTRAST:  aAutoStr += aIconStyleLB.GetEntry( 6 ); break;
++            case STYLE_SYMBOLS_HICONTRAST:  aAutoStr += aIconStyleLB.GetEntry( 2 ); break;
++            case STYLE_SYMBOLS_INDUSTRIAL:  aAutoStr += aIconStyleLB.GetEntry( 3 ); break;
++            case STYLE_SYMBOLS_CRYSTAL:     aAutoStr += aIconStyleLB.GetEntry( 4 ); break;
++            case STYLE_SYMBOLS_TANGO:       aAutoStr += aIconStyleLB.GetEntry( 5 ); break;
++            case STYLE_SYMBOLS_CLASSIC:     aAutoStr += aIconStyleLB.GetEntry( 6 ); break;
+         }
+ 
+         aIconStyleLB.RemoveEntry( 0 );

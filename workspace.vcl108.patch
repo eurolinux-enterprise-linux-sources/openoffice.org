@@ -1,0 +1,314 @@
+diff -ru vcl/unx/source/dtrans/X11_selection.cxx vcl/unx/source/dtrans/X11_selection.cxx
+--- vcl/unx/source/dtrans/X11_selection.cxx	2009-11-26 09:56:24.000000000 +0000
++++ vcl/unx/source/dtrans/X11_selection.cxx	2009-11-26 20:25:02.000000000 +0000
+@@ -66,9 +66,9 @@
+ #include <com/sun/star/awt/MouseEvent.hpp>
+ #include <com/sun/star/awt/MouseButton.hpp>
+ #include <rtl/tencinfo.h>
+-#ifndef OSL_PROCESS_H
+ #include <osl/process.h>
+-#endif
++
++#include <comphelper/processfactory.hxx>
+ 
+ #define DRAG_EVENT_MASK	ButtonPressMask			|\
+ 						  	ButtonReleaseMask		|\
+@@ -81,12 +81,20 @@
+ using namespace com::sun::star::lang;
+ using namespace com::sun::star::awt;
+ using namespace com::sun::star::uno;
++using namespace com::sun::star::frame;
+ using namespace cppu;
+ using namespace osl;
+ using namespace rtl;
+ 
+ using namespace x11;
+ 
++//Temporarily redeclare to avoid pre/postx and renaming*/
++class Application
++{
++public:
++    static void Yield( bool bAllEvents = false );
++};
++
+ // stubs to satisfy solaris compiler's rather rigid linking warning
+ extern "C"
+ {
+@@ -3698,6 +3706,14 @@
+ 	timeval aLast;
+ 	gettimeofday( &aLast, 0 );
+ 
++	Reference< XMultiServiceFactory > xFact( ::comphelper::getProcessServiceFactory() );
++	if( xFact.is() )
++	{
++		Reference< XDesktop > xDesktop( xFact->createInstance( ::rtl::OUString::createFromAscii( "com.sun.star.frame.Desktop" ) ), UNO_QUERY );
++		if( xDesktop.is() )
++			xDesktop->addTerminateListener(This);
++	}
++
+ 	while( osl_scheduleThread(This->m_aThread) )
+ 	{
+ 		This->dispatchEvent( 1000 );
+@@ -3738,12 +3754,46 @@
+ #endif
+ }
+ 
++void SelectionManager::shutdown() throw()
++{
++    ResettableMutexGuard aGuard(m_aMutex);
++    // stop dispatching
++    if( m_aThread )
++    {
++        osl_terminateThread( m_aThread );
++        /*
++         * Allow thread to finish before app exits to avoid pulling the carpet
++         * out from under it if pasting is occuring during shutdown
++         *
++         * a) allow it to have the Mutex and 
++         * b) reschedule to allow it to complete callbacks to any
++         * Application::GetSolarMutex protected regions, etc. e.g.
++         * TransferableHelper::getTransferDataFlavors (via
++         * SelectionManager::handleSelectionRequest) which it might
++         * currently be trying to enter. 
++         *
++         * Otherwise the thread may be left still waiting on a GlobalMutex
++         * when that gets destroyed, letting the thread blow up and die
++         * when enters the section in a now dead OOo instance.
++         */
++        aGuard.clear();
++        while (osl_isThreadRunning(m_aThread))
++            Application::Yield();
++        osl_joinWithThread( m_aThread );
++        osl_destroyThread( m_aThread );
++        m_aThread = NULL;
++        aGuard.reset();
++    }
++    m_xDisplayConnection->removeEventHandler( Any(), this );
++    m_xDisplayConnection.clear();
++}
++
+ // ------------------------------------------------------------------------
+ 
+ sal_Bool SelectionManager::handleEvent( const Any& event ) throw()
+ {
+-	Sequence< sal_Int8 > aSeq;
+-	if( (event >>= aSeq) )
++    Sequence< sal_Int8 > aSeq;
++    if( (event >>= aSeq) )
+     {
+         XEvent* pEvent = (XEvent*)aSeq.getArray();
+         Time nTimestamp = CurrentTime;
+@@ -3770,16 +3820,38 @@
+         #if OSL_DEBUG_LEVEL > 1
+         fprintf( stderr, "SelectionManager got downing event\n" );
+         #endif
+-        MutexGuard aGuard(m_aMutex);
+-        // stop dispatching
+-        if( m_aThread )
+-            osl_terminateThread( m_aThread );
+-        m_xDisplayConnection->removeEventHandler( Any(), this );
+-        m_xDisplayConnection.clear();
++        shutdown();
+     }
+     return sal_True;
+ }
+ 
++void SAL_CALL SelectionManager::disposing( const ::com::sun::star::lang::EventObject& )
++    throw( ::com::sun::star::uno::RuntimeException )
++{
++}
++
++void SAL_CALL SelectionManager::queryTermination( const ::com::sun::star::lang::EventObject& )
++    throw( ::com::sun::star::frame::TerminationVetoException, ::com::sun::star::uno::RuntimeException )
++{
++}
++
++/*
++ * To be safe, shutdown needs to be called before the ~SfxApplication is called, waiting until
++ * the downing event can be too late if paste are requested during shutdown and ~SfxApplication
++ * has been called before vcl is shutdown
++ */
++void SAL_CALL SelectionManager::notifyTermination( const ::com::sun::star::lang::EventObject& rEvent )
++    throw( ::com::sun::star::uno::RuntimeException )
++{
++    Reference< XDesktop > xDesktop( rEvent.Source, UNO_QUERY );
++    if( xDesktop.is() == sal_True )
++        xDesktop->removeTerminateListener( this );
++    #if OSL_DEBUG_LEVEL > 1
++    fprintf( stderr, "SelectionManager got app termination event\n" );
++    #endif
++    shutdown();
++}
++
+ // ------------------------------------------------------------------------
+ 
+ void SelectionManager::registerHandler( Atom selection, SelectionAdaptor& rAdaptor )
+diff -ru vcl/unx/source/dtrans/X11_selection.hxx vcl/unx/source/dtrans/X11_selection.hxx
+--- vcl/unx/source/dtrans/X11_selection.hxx	2009-11-26 09:56:24.000000000 +0000
++++ vcl/unx/source/dtrans/X11_selection.hxx	2009-11-26 17:54:21.000000000 +0000
+@@ -32,6 +32,7 @@
+ #define _DTRANS_X11_SELECTION_HXX_
+ 
+ #include <cppuhelper/compbase3.hxx>
++#include <cppuhelper/compbase4.hxx>
+ #include <com/sun/star/datatransfer/XTransferable.hpp>
+ #include <com/sun/star/datatransfer/dnd/XDropTarget.hpp>
+ #include <com/sun/star/datatransfer/dnd/XDragSource.hpp>
+@@ -39,6 +40,7 @@
+ #include <com/sun/star/lang/XInitialization.hpp>
+ #include <com/sun/star/lang/XServiceInfo.hpp>
+ #include <com/sun/star/script/XInvocation.hpp>
++#include <com/sun/star/frame/XDesktop.hpp>
+ #include <osl/thread.h>
+ 
+ #ifndef _OSL_CONDITION_HXX_
+@@ -155,10 +157,11 @@
+ 		
+ 	
+ 	class SelectionManager :
+-		public ::cppu::WeakImplHelper3<
++		public ::cppu::WeakImplHelper4<
+ 			::com::sun::star::datatransfer::dnd::XDragSource,
+ 			::com::sun::star::lang::XInitialization,
+-			::com::sun::star::awt::XEventHandler
++			::com::sun::star::awt::XEventHandler,
++			::com::sun::star::frame::XTerminateListener
+ 		>,
+ 		public SelectionAdaptor
+ 	{
+@@ -478,6 +481,8 @@
+ 		void setImage( sal_Int32 image, Window aDropWindow, Time aTimestamp );
+ 		void transferablesFlavorsChanged();
+ 
++        void shutdown() throw();
++
+ 		// XInitialization
+ 		virtual void		SAL_CALL initialize( const Sequence< Any >& arguments ) throw( ::com::sun::star::uno::Exception );
+ 
+@@ -499,6 +504,15 @@
+ 		virtual void clearTransferable() throw();
+         virtual void fireContentsChanged() throw();
+         virtual Reference< XInterface > getReference() throw();
++
++        // XEventListener
++        virtual void SAL_CALL disposing( const ::com::sun::star::lang::EventObject& Source ) throw( ::com::sun::star::uno::RuntimeException );
++
++        // XTerminateListener
++        virtual void SAL_CALL queryTermination( const ::com::sun::star::lang::EventObject& aEvent )
++                throw( ::com::sun::star::frame::TerminationVetoException, ::com::sun::star::uno::RuntimeException );
++        virtual void SAL_CALL notifyTermination( const ::com::sun::star::lang::EventObject& aEvent )
++                throw( ::com::sun::star::uno::RuntimeException );
+ 	};
+ 
+ // ------------------------------------------------------------------------
+diff -ru vcl/util/makefile.mk vcl/util/makefile.mk
+--- vcl/util/makefile.mk	2009-11-26 09:56:21.000000000 +0000
++++ vcl/util/makefile.mk	2009-11-26 17:48:17.000000000 +0000
+@@ -304,6 +304,7 @@
+             $(VOSLIB)           \
+             $(BASEGFXLIB)	\
+             $(UNOTOOLSLIB) \
++            $(COMPHELPERLIB)	\
+             $(CPPUHELPERLIB) \
+             $(CPPULIB) \
+             $(SALLIB)
+--- vcl/source/fontsubset/sft.cxx	2009-12-09 10:16:54.000000000 +0000
++++ vcl/source/fontsubset/sft.cxx	2009-12-09 10:17:54.000000000 +0000
+@@ -1094,6 +1094,14 @@
+ 	const sal_uInt8* table = getTable( t, O_name );
+     int nTableSize = getTableSize(t, O_name);
+ 
++    if (nTableSize < 4)
++    {
++#if OSL_DEBUG_LEVEL > 1
++        fprintf(stderr, "O_name table too small\n");
++#endif
++        return;
++    }
++
+     sal_uInt16 n = GetUInt16(table, 2, 1);
+     int i, r;
+     sal_Bool bPSNameOK = sal_True;
+@@ -1681,7 +1689,6 @@
+         goto cleanup;
+     }
+ 
+-
+     if (((*ttf)->ptr = (sal_uInt8 *) mmap(0, (*ttf)->fsize, PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED) {
+         ret = SF_MEMORY;
+         goto cleanup;
+@@ -2702,7 +2709,7 @@
+     }
+ 
+     table = getTable(ttf, O_post);
+-    if (table) {
++    if (table && getTableSize(ttf, O_post) >= 12+sizeof(sal_uInt32)) {
+         info->pitch  = GetUInt32(table, 12, 1);
+         info->italicAngle = GetInt32(table, 4, 1);
+     }
+@@ -2808,6 +2815,15 @@
+ {
+     const sal_uInt8* table = getTable(ttf, O_name);
+     int nTableSize = getTableSize(ttf, O_name );
++
++    if (nTableSize < 6)
++    {
++#if OSL_DEBUG_LEVEL > 1
++        fprintf(stderr, "O_name table too small\n");
++#endif
++        return 0;
++    }
++
+     sal_uInt16 n = GetUInt16(table, 2, 1);
+     int nStrBase = GetUInt16(table, 4, 1);
+     int i;
+diff -ru vcl/unx/source/gdi/salgdi.cxx vcl/unx/source/gdi/salgdi.cxx
+--- vcl/unx/source/gdi/salgdi.cxx	2009-11-27 11:33:16.000000000 +0000
++++ vcl/unx/source/gdi/salgdi.cxx	2009-11-27 14:57:27.000000000 +0000
+@@ -1427,14 +1427,17 @@
+         // unless it splits another trapezoid that is still active
+         bool bSplit = false;
+         ActiveTrapSet::iterator aActiveTrapsIt = aActiveTraps.begin();
+-        for(; aActiveTrapsIt != aActiveTraps.end(); ++aActiveTrapsIt )
++        while(aActiveTrapsIt != aActiveTraps.end())
+         {
+             XTrapezoid& rLeftTrap = aTrapVector[ *aActiveTrapsIt ];
+ 
+             // skip until first overlap candidate
+             // TODO: use stl::*er_bound() instead
+             if( IsLeftOf( aTrapezoid.left, rLeftTrap.left) )
++            {
++                ++aActiveTrapsIt;
+                 continue;
++            }
+ 
+             // in the ActiveTrapSet there are still trapezoids where
+             // a vertical overlap with new trapezoids is no longer possible
+@@ -1445,15 +1448,26 @@
+             {
+                 ActiveTrapSet::iterator it = aActiveTrapsIt;
+                 if( aActiveTrapsIt != aActiveTraps.begin() )
++                {
+                     --aActiveTrapsIt;
+-                aActiveTraps.erase( it );
++                    aActiveTraps.erase( it );
++                    ++aActiveTrapsIt;
++                }
++                else
++                {
++                    aActiveTraps.erase( it );
++                    aActiveTrapsIt = aActiveTraps.begin();
++                }
+                 continue;
+             }
+ 
+             // check if there is horizontal overlap
+             // aTrapezoid.left==rLeftTrap.right is allowed though
+             if( !IsLeftOf( aTrapezoid.left, rLeftTrap.right ) )
++            {
++                ++aActiveTrapsIt;
+                 continue;
++            }
+ 
+             // prepare to split the old trapezoid and keep its upper part
+             // find the old trapezoids entry in the VerticalTrapSet and remove it

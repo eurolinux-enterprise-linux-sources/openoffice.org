@@ -1,0 +1,16 @@
+# HG changeset patch
+# Parent 25cb853961c8c5bcbe8833e2cd2323707a3d204b
+#i112059# avoid possible null pointer dereference
+
+diff -r 25cb853961c8 sw/source/filter/ww8/ww8graf.cxx
+--- a/sw/source/filter/ww8/ww8graf.cxx	Tue Jun 01 06:52:22 2010 +0200
++++ b/sw/source/filter/ww8/ww8graf.cxx	Thu Jun 03 08:30:49 2010 +0200
+@@ -2833,7 +2833,7 @@
+         MapWrapIntoFlyFmt(pRecord, pRetFrmFmt);
+ 
+     // Set frame name with object name
+-    if( aObjName.Len() )
++    if( pRetFrmFmt /*#i52825# */ && aObjName.Len() )
+         pRetFrmFmt->SetName( aObjName );
+     return AddAutoAnchor(pRetFrmFmt);
+ }

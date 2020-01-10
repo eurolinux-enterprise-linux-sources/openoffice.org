@@ -1,0 +1,1745 @@
+diff -ru sc.orig/inc/document.hxx sc/inc/document.hxx
+--- sc.orig/inc/document.hxx	2009-06-04 12:39:48.000000000 +0100
++++ sc/inc/document.hxx	2009-06-04 12:40:23.000000000 +0100
+@@ -1319,8 +1319,8 @@
+ 	void			RestorePrintRanges( const ScPrintRangeSaver& rSaver );
+ 
+ 	SC_DLLPUBLIC Rectangle		GetMMRect( SCCOL nStartCol, SCROW nStartRow,
+-								SCCOL nEndCol, SCROW nEndRow, SCTAB nTab );
+-	SC_DLLPUBLIC ScRange			GetRange( SCTAB nTab, const Rectangle& rMMRect );
++								SCCOL nEndCol, SCROW nEndRow, SCTAB nTab ) const;
++	SC_DLLPUBLIC ScRange			GetRange( SCTAB nTab, const Rectangle& rMMRect ) const;
+ 
+ 	void			UpdStlShtPtrsFrmNms();
+ 	void			StylesToNames();
+diff -ru sc.orig/inc/drwlayer.hxx sc/inc/drwlayer.hxx
+--- sc.orig/inc/drwlayer.hxx	2009-06-04 12:39:49.000000000 +0100
++++ sc/inc/drwlayer.hxx	2009-06-04 12:40:23.000000000 +0100
+@@ -107,12 +107,10 @@
+ 	BOOL			bHyphenatorSet;
+ 
+ private:
+-	void			MoveAreaTwips( SCTAB nTab, const Rectangle& rArea, const Point& rMove,
+-								const Point& rTopLeft );
+ 	void			MoveCells( SCTAB nTab, SCCOL nCol1,SCROW nRow1, SCCOL nCol2,SCROW nRow2,
+ 								SCsCOL nDx,SCsROW nDy, bool bUpdateNoteCaptionPos );
+ 
+-    void            RecalcPos( SdrObject* pObj, const ScDrawObjData& rData, bool bNegativePage, bool bUpdateNoteCaptionPos );
++    void            RecalcPos( SdrObject* pObj, ScDrawObjData& rData, bool bNegativePage, bool bUpdateNoteCaptionPos );
+ 
+ public:
+ 					ScDrawLayer( ScDocument* pDocument, const String& rName );
+@@ -194,8 +192,11 @@
+ 	void			EnsureGraphicNames();
+ 
+ 	// Verankerung setzen und ermitteln
+-	static void		SetAnchor( SdrObject*, ScAnchorType );
+-	static ScAnchorType	GetAnchor( const SdrObject* );
++	static void		SetPageAnchored( SdrObject& );
++	static void		SetCellAnchored( SdrObject&, const ScDrawObjData &rAnchor );
++	static void		SetCellAnchoredFromPosition( SdrObject &rObj, const ScDocument &rDoc, SCTAB nTab );
++	static void		UpdateCellAnchorFromPositionEnd( SdrObject &rObj, const ScDocument &rDoc, SCTAB nTab );
++	static ScAnchorType	GetAnchorType( const SdrObject& );
+ 
+ 	// Positionen fuer Detektivlinien
+ 	static ScDrawObjData* GetObjData( SdrObject* pObj, BOOL bCreate=FALSE );
+diff -ru sc.orig/inc/userdat.hxx sc/inc/userdat.hxx
+--- sc.orig/inc/userdat.hxx	2009-06-04 12:39:49.000000000 +0100
++++ sc/inc/userdat.hxx	2009-06-04 12:40:23.000000000 +0100
+@@ -63,12 +63,15 @@
+ public:
+     ScAddress           maStart;
+     ScAddress           maEnd;
++    Point               maStartOffset;
++    Point               maEndOffset;
+     bool                mbNote;
++    Rectangle           maLastRect;
+ 
+     explicit            ScDrawObjData();
+ 
+ private:
+-	virtual ScDrawObjData* Clone( SdrObject* pObj ) const;
++     virtual ScDrawObjData* Clone( SdrObject* pObj ) const;
+ };
+ 
+ //-------------------------------------------------------------------------
+diff -ru sc.orig/source/core/data/documen3.cxx sc/source/core/data/documen3.cxx
+--- sc.orig/source/core/data/documen3.cxx	2009-06-04 12:39:09.000000000 +0100
++++ sc/source/core/data/documen3.cxx	2009-06-04 12:40:23.000000000 +0100
+@@ -1510,7 +1510,7 @@
+ 	aEmbedRange = ScRange();
+ }
+ 
+-ScRange ScDocument::GetRange( SCTAB nTab, const Rectangle& rMMRect )
++ScRange ScDocument::GetRange( SCTAB nTab, const Rectangle& rMMRect ) const
+ {
+ 	ScTable* pTable = pTab[nTab];
+ 	if (!pTable)
+@@ -1801,7 +1801,7 @@
+ }
+ 
+ Rectangle ScDocument::GetMMRect( SCCOL nStartCol, SCROW nStartRow,
+-								SCCOL nEndCol, SCROW nEndRow, SCTAB nTab )
++								SCCOL nEndCol, SCROW nEndRow, SCTAB nTab ) const
+ {
+ 	if (!ValidTab(nTab) || !pTab[nTab])
+ 	{
+diff -ru sc.orig/source/core/data/drwlayer.cxx sc/source/core/data/drwlayer.cxx
+--- sc.orig/source/core/data/drwlayer.cxx	2009-06-04 12:39:09.000000000 +0100
++++ sc/source/core/data/drwlayer.cxx	2009-06-05 12:28:12.000000000 +0100
+@@ -67,6 +67,9 @@
+ #include <vcl/svapp.hxx>
+ #include <unotools/ucbstreamhelper.hxx>
+ 
++#include <basegfx/polygon/b2dpolygon.hxx>
++#include <basegfx/polygon/b2dpolygontools.hxx>
++
+ #include "drwlayer.hxx"
+ #include "drawpage.hxx"
+ #include "global.hxx"
+@@ -524,7 +527,41 @@
+ 	}
+ }
+ 
+-void ScDrawLayer::RecalcPos( SdrObject* pObj, const ScDrawObjData& rData, bool bNegativePage, bool bUpdateNoteCaptionPos )
++namespace
++{
++    //Can't have a zero width dimension
++    Rectangle lcl_makeSafeRectangle(const Rectangle &rNew)
++    {
++        Rectangle aRect = rNew;
++        if (aRect.Bottom() == aRect.Top())
++            aRect.Bottom() = aRect.Top()+1;
++        if (aRect.Right() == aRect.Left())
++            aRect.Right() = aRect.Left()+1;
++        return aRect;
++    }
++
++    Point lcl_calcAvailableDiff(ScDocument &rDoc, SCCOL nCol, SCROW nRow, SCTAB nTab, const Point &aWantedDiff)
++    {
++        Point aAvailableDiff(aWantedDiff);
++        long nHeight = rDoc.GetRowHeight( nRow, nTab ) * HMM_PER_TWIPS;
++        long nWidth = rDoc.GetColWidth( nCol, nTab ) * HMM_PER_TWIPS;
++        if (aAvailableDiff.Y() > nHeight)
++            aAvailableDiff.Y() = nHeight;
++        if (aAvailableDiff.X() > nWidth)
++            aAvailableDiff.X() = nWidth;
++        return aAvailableDiff;
++    }
++
++    Rectangle lcl_UpdateCalcPoly(basegfx::B2DPolygon &rCalcPoly, int nWhichPoint, const Point &rPos)
++    {
++        rCalcPoly.setB2DPoint(nWhichPoint, basegfx::B2DPoint(rPos.X(), rPos.Y()));
++        basegfx::B2DRange aRange(basegfx::tools::getRange(rCalcPoly));
++        return Rectangle(aRange.getMinX(), aRange.getMinY(),
++            aRange.getMaxX(), aRange.getMaxY());
++    }
++}
++
++void ScDrawLayer::RecalcPos( SdrObject* pObj, ScDrawObjData& rData, bool bNegativePage, bool bUpdateNoteCaptionPos )
+ {
+ 	DBG_ASSERT( pDoc, "ScDrawLayer::RecalcPos - missing document" );
+ 	if( !pDoc )
+@@ -563,6 +600,8 @@
+ 
+ 	if( bCircle )
+ 	{
++		rData.maLastRect = pObj->GetLogicRect();
++
+ 		Point aPos( pDoc->GetColOffset( nCol1, nTab1 ), pDoc->GetRowOffset( nRow1, nTab1 ) );
+ 		TwipsToMM( aPos.X() );
+ 		TwipsToMM( aPos.Y() );
+@@ -583,11 +622,18 @@
+ 		{
+ 			if (bRecording)
+ 				AddCalcUndo( new SdrUndoGeoObj( *pObj ) );
+-			pObj->SetLogicRect(aRect);
++			rData.maLastRect = lcl_makeSafeRectangle(aRect);
++			pObj->SetLogicRect(rData.maLastRect);
+ 		}
+ 	}
+ 	else if( bArrow )
+ 	{
++		rData.maLastRect = pObj->GetLogicRect();
++		basegfx::B2DPolygon aCalcPoly;
++		Point aOrigStartPos(pObj->GetPoint(0));
++		Point aOrigEndPos(pObj->GetPoint(1));
++		aCalcPoly.append(basegfx::B2DPoint(aOrigStartPos.X(), aOrigStartPos.Y()));
++		aCalcPoly.append(basegfx::B2DPoint(aOrigEndPos.X(), aOrigEndPos.Y()));
+ 		//!	nicht mehrere Undos fuer ein Objekt erzeugen (hinteres kann dann weggelassen werden)
+ 
+ 		if( bValid1 )
+@@ -606,6 +652,8 @@
+ 			{
+ 				if (bRecording)
+ 					AddCalcUndo( new SdrUndoGeoObj( *pObj ) );
++
++				rData.maLastRect = lcl_UpdateCalcPoly(aCalcPoly, 0, aStartPos);
+ 				pObj->SetPoint( aStartPos, 0 );
+ 			}
+ 
+@@ -620,6 +668,8 @@
+ 				{
+ 					if (bRecording)
+ 						AddCalcUndo( new SdrUndoGeoObj( *pObj ) );
++
++					rData.maLastRect = lcl_UpdateCalcPoly(aCalcPoly, 1, aEndPos);
+ 					pObj->SetPoint( aEndPos, 1 );
+ 				}
+ 			}
+@@ -640,6 +690,8 @@
+ 			{
+ 				if (bRecording)
+ 					AddCalcUndo( new SdrUndoGeoObj( *pObj ) );
++
++				rData.maLastRect = lcl_UpdateCalcPoly(aCalcPoly, 1, aEndPos);
+ 				pObj->SetPoint( aEndPos, 1 );
+ 			}
+ 
+@@ -656,45 +708,68 @@
+ 				{
+ 					if (bRecording)
+ 						AddCalcUndo( new SdrUndoGeoObj( *pObj ) );
++
++					rData.maLastRect = lcl_UpdateCalcPoly(aCalcPoly, 0, aStartPos);
+ 					pObj->SetPoint( aStartPos, 0 );
+ 				}
+ 			}
+ 		}
+ 	}
+-	else								// Referenz-Rahmen
++	else
+ 	{
++		bool bCanResize = bValid2 && !pObj->IsResizeProtect();
++
++		//First time positioning, must be able to at least move it
++		if (rData.maLastRect.IsEmpty())
++			rData.maLastRect = pObj->GetLogicRect();
++
+ 		DBG_ASSERT( bValid1, "ScDrawLayer::RecalcPos - invalid start position" );
+ 		Point aPos( pDoc->GetColOffset( nCol1, nTab1 ), pDoc->GetRowOffset( nRow1, nTab1 ) );
+ 		TwipsToMM( aPos.X() );
+ 		TwipsToMM( aPos.Y() );
++		aPos += lcl_calcAvailableDiff(*pDoc, nCol1, nRow1, nTab1, rData.maStartOffset);
+ 
+-		if( bValid2 )
++		if( bCanResize )
+ 		{
+-			Point aEnd( pDoc->GetColOffset( nCol2 + 1, nTab2 ), pDoc->GetRowOffset( nRow2 + 1, nTab2 ) );
++			Point aEnd( pDoc->GetColOffset( nCol2, nTab2 ), pDoc->GetRowOffset( nRow2, nTab2 ) );
+ 			TwipsToMM( aEnd.X() );
+ 			TwipsToMM( aEnd.Y() );
++			aEnd += lcl_calcAvailableDiff(*pDoc, nCol2, nRow2, nTab2, rData.maEndOffset);
+ 
+ 			Rectangle aNew( aPos, aEnd );
+ 			if ( bNegativePage )
+ 				MirrorRectRTL( aNew );
+ 			if ( pObj->GetLogicRect() != aNew )
+ 			{
++				Rectangle aOld(pObj->GetLogicRect());
++
+ 				if (bRecording)
+ 					AddCalcUndo( new SdrUndoGeoObj( *pObj ) );
+-				pObj->SetLogicRect(aNew);
++			    rData.maLastRect = lcl_makeSafeRectangle(aNew);
++			    pObj->SetLogicRect(rData.maLastRect);
+ 			}
+ 		}
+ 		else
+ 		{
+ 			if ( bNegativePage )
+-				aPos.X() = -aPos.X();
++				aPos.X() = -aPos.X() - rData.maLastRect.GetWidth();
+ 			if ( pObj->GetRelativePos() != aPos )
+ 			{
+ 				if (bRecording)
+ 					AddCalcUndo( new SdrUndoGeoObj( *pObj ) );
++				rData.maLastRect.SetPos( aPos );
+ 				pObj->SetRelativePos( aPos );
+ 			}
+ 		}
++
++		/*
++		 * If we were not allowed resize the object, then the end cell anchor
++		 * is possibly incorrect now, and if the object has no end-cell (e.g.
++		 * missing in original .xml) we are also forced to generate one
++		*/
++		bool bEndAnchorIsBad = !bValid2 || pObj->IsResizeProtect();
++		if (bEndAnchorIsBad)
++			ScDrawLayer::UpdateCellAnchorFromPositionEnd(*pObj, *pDoc, nTab1);
+ 	}
+ }
+ 
+@@ -869,151 +944,6 @@
+ 	return pRet;
+ }
+ 
+-//	MoveAreaTwips: all measures are kept in twips
+-void ScDrawLayer::MoveAreaTwips( SCTAB nTab, const Rectangle& rArea,
+-		const Point& rMove, const Point& rTopLeft )
+-{
+-	if (!rMove.X() && !rMove.Y())
+-		return; 									// nix
+-
+-	SdrPage* pPage = GetPage(static_cast<sal_uInt16>(nTab));
+-	DBG_ASSERT(pPage,"Page nicht gefunden");
+-	if (!pPage)
+-		return;
+-
+-	BOOL bNegativePage = pDoc && pDoc->IsNegativePage( nTab );
+-
+-	// fuer Shrinking!
+-	Rectangle aNew( rArea );
+-	BOOL bShrink = FALSE;
+-	if ( rMove.X() < 0 || rMove.Y() < 0 )		// verkleinern
+-	{
+-		if ( rTopLeft != rArea.TopLeft() )		// sind gleich beim Verschieben von Zellen
+-		{
+-			bShrink = TRUE;
+-			aNew.Left() = rTopLeft.X();
+-			aNew.Top() = rTopLeft.Y();
+-		}
+-	}
+-	SdrObjListIter aIter( *pPage, IM_FLAT );
+-	SdrObject* pObject = aIter.Next();
+-	while (pObject)
+-	{
+-		if( GetAnchor( pObject ) == SCA_CELL )
+-		{
+-			if ( GetObjData( pObject ) )					// Detektiv-Pfeil ?
+-			{
+-				// hier nichts
+-			}
+-			else if ( pObject->ISA( SdrEdgeObj ) )			// Verbinder?
+-			{
+-				//	hier auch nichts
+-				//!	nicht verbundene Enden wie bei Linien (s.u.) behandeln?
+-			}
+-			else if ( pObject->IsPolyObj() && pObject->GetPointCount()==2 )
+-			{
+-				for (USHORT i=0; i<2; i++)
+-				{
+-					BOOL bMoved = FALSE;
+-					Point aPoint = pObject->GetPoint(i);
+-					lcl_ReverseTwipsToMM( aPoint );
+-					if (rArea.IsInside(aPoint))
+-					{
+-						aPoint += rMove; bMoved = TRUE;
+-					}
+-					else if (bShrink && aNew.IsInside(aPoint))
+-					{
+-						//	Punkt ist in betroffener Zelle - Test auf geloeschten Bereich
+-						if ( rMove.X() && aPoint.X() >= rArea.Left() + rMove.X() )
+-						{
+-							aPoint.X() = rArea.Left() + rMove.X() - SHRINK_DIST_TWIPS;
+-							if ( aPoint.X() < 0 ) aPoint.X() = 0;
+-							bMoved = TRUE;
+-						}
+-						if ( rMove.Y() && aPoint.Y() >= rArea.Top() + rMove.Y() )
+-						{
+-							aPoint.Y() = rArea.Top() + rMove.Y() - SHRINK_DIST_TWIPS;
+-							if ( aPoint.Y() < 0 ) aPoint.Y() = 0;
+-							bMoved = TRUE;
+-						}
+-					}
+-					if( bMoved )
+-					{
+-						AddCalcUndo( new SdrUndoGeoObj( *pObject ) );
+-						lcl_TwipsToMM( aPoint );
+-						pObject->SetPoint( aPoint, i );
+-					}
+-				}
+-			}
+-			else
+-			{
+-				Rectangle aObjRect = pObject->GetLogicRect();
+-				// aOldMMPos: not converted, millimeters
+-				Point aOldMMPos = bNegativePage ? aObjRect.TopRight() : aObjRect.TopLeft();
+-				lcl_ReverseTwipsToMM( aObjRect );
+-				Point aTopLeft = bNegativePage ? aObjRect.TopRight() : aObjRect.TopLeft();	// logical left
+-				Size aMoveSize;
+-				BOOL bDoMove = FALSE;
+-				if (rArea.IsInside(aTopLeft))
+-				{
+-					aMoveSize = Size(rMove.X(),rMove.Y());
+-					bDoMove = TRUE;
+-				}
+-				else if (bShrink && aNew.IsInside(aTopLeft))
+-				{
+-					//	Position ist in betroffener Zelle - Test auf geloeschten Bereich
+-					if ( rMove.X() && aTopLeft.X() >= rArea.Left() + rMove.X() )
+-					{
+-						aMoveSize.Width() = rArea.Left() + rMove.X() - SHRINK_DIST - aTopLeft.X();
+-						bDoMove = TRUE;
+-					}
+-					if ( rMove.Y() && aTopLeft.Y() >= rArea.Top() + rMove.Y() )
+-					{
+-						aMoveSize.Height() = rArea.Top() + rMove.Y() - SHRINK_DIST - aTopLeft.Y();
+-						bDoMove = TRUE;
+-					}
+-				}
+-				if ( bDoMove )
+-				{
+-					if ( bNegativePage )
+-					{
+-						if ( aTopLeft.X() + aMoveSize.Width() > 0 )
+-							aMoveSize.Width() = -aTopLeft.X();
+-					}
+-					else
+-					{
+-						if ( aTopLeft.X() + aMoveSize.Width() < 0 )
+-							aMoveSize.Width() = -aTopLeft.X();
+-					}
+-					if ( aTopLeft.Y() + aMoveSize.Height() < 0 )
+-						aMoveSize.Height() = -aTopLeft.Y();
+-
+-					//	get corresponding move size in millimeters:
+-					Point aNewPos( aTopLeft.X() + aMoveSize.Width(), aTopLeft.Y() + aMoveSize.Height() );
+-					lcl_TwipsToMM( aNewPos );
+-					aMoveSize = Size( aNewPos.X() - aOldMMPos.X(), aNewPos.Y() - aOldMMPos.Y() );	// millimeters
+-
+-					AddCalcUndo( new SdrUndoMoveObj( *pObject, aMoveSize ) );
+-					pObject->Move( aMoveSize );
+-				}
+-				else if ( rArea.IsInside( bNegativePage ? aObjRect.BottomLeft() : aObjRect.BottomRight() ) &&
+-							!pObject->IsResizeProtect() )
+-				{
+-					//	geschuetzte Groessen werden nicht veraendert
+-					//	(Positionen schon, weil sie ja an der Zelle "verankert" sind)
+-					AddCalcUndo( new SdrUndoGeoObj( *pObject ) );
+-					long nOldSizeX = aObjRect.Right() - aObjRect.Left() + 1;
+-					long nOldSizeY = aObjRect.Bottom() - aObjRect.Top() + 1;
+-					long nLogMoveX = rMove.X() * ( bNegativePage ? -1 : 1 );	// logical direction
+-					pObject->Resize( aOldMMPos, Fraction( nOldSizeX+nLogMoveX, nOldSizeX ),
+-												Fraction( nOldSizeY+rMove.Y(), nOldSizeY ) );
+-				}
+-			}
+-		}
+-		pObject = aIter.Next();
+-	}
+-}
+-
+ void ScDrawLayer::MoveArea( SCTAB nTab, SCCOL nCol1,SCROW nRow1, SCCOL nCol2,SCROW nRow2,
+ 							SCsCOL nDx,SCsROW nDy, BOOL bInsDel, bool bUpdateNoteCaptionPos )
+ {
+@@ -1055,11 +985,6 @@
+ 			aTopLeft.Y() += aMove.Y();
+ 	}
+ 
+-	//	drawing objects are now directly included in cut&paste
+-	//	-> only update references when inserting/deleting (or changing widths or heights)
+-	if ( bInsDel )
+-		MoveAreaTwips( nTab, aRect, aMove, aTopLeft );
+-
+ 		//
+ 		//		Detektiv-Pfeile: Zellpositionen anpassen
+ 		//
+@@ -1097,8 +1022,6 @@
+ 		aTopLeft.X() = -aTopLeft.X();
+ 		nDifTwips = -nDifTwips;
+ 	}
+-
+-	MoveAreaTwips( nTab, aRect, Point( nDifTwips,0 ), aTopLeft );
+ }
+ 
+ void ScDrawLayer::HeightChanged( SCTAB nTab, SCROW nRow, long nDifTwips )
+@@ -1129,8 +1052,6 @@
+ 		MirrorRectRTL( aRect );
+ 		aTopLeft.X() = -aTopLeft.X();
+ 	}
+-
+-	MoveAreaTwips( nTab, aRect, Point( 0,nDifTwips ), aTopLeft );
+ }
+ 
+ BOOL ScDrawLayer::HasObjectsInRows( SCTAB nTab, SCROW nStartRow, SCROW nEndRow )
+@@ -1808,35 +1729,105 @@
+ 	}
+ }
+ 
+-void ScDrawLayer::SetAnchor( SdrObject* pObj, ScAnchorType eType )
++namespace
++{
++    SdrObjUserData* GetFirstUserDataOfType(const SdrObject *pObj, UINT16 nId)
++    {
++        USHORT nCount = pObj ? pObj->GetUserDataCount() : 0;
++        for( USHORT i = 0; i < nCount; i++ )
++        {
++            SdrObjUserData* pData = pObj->GetUserData( i );
++            if( pData && pData->GetInventor() == SC_DRAWLAYER && pData->GetId() == nId )
++                return pData;
++        }
++        return NULL;
++    }
++
++    void DeleteFirstUserDataOfType(SdrObject *pObj, UINT16 nId)
++    {
++        USHORT nCount = pObj ? pObj->GetUserDataCount() : 0;
++        for( USHORT i = nCount; i > 0; i-- )
++        {
++            SdrObjUserData* pData = pObj->GetUserData( i-1 );
++            if( pData && pData->GetInventor() == SC_DRAWLAYER && pData->GetId() == nId )
++                pObj->DeleteUserData(i-1);
++        }
++    }
++}
++
++void ScDrawLayer::SetCellAnchored( SdrObject &rObj, const ScDrawObjData &rAnchor )
++{
++    ScDrawObjData* pAnchor = GetObjData( &rObj, true );
++    pAnchor->maStart = rAnchor.maStart;
++    pAnchor->maEnd = rAnchor.maEnd;
++    pAnchor->maStartOffset = rAnchor.maStartOffset;
++    pAnchor->maEndOffset = rAnchor.maEndOffset;
++}
++
++void ScDrawLayer::SetCellAnchoredFromPosition( SdrObject &rObj, const ScDocument &rDoc, SCTAB nTab )
++{
++    Rectangle aObjRect(rObj.GetLogicRect());
++    ScRange aRange = rDoc.GetRange( nTab, aObjRect );
++
++    Rectangle aCellRect;
++
++    ScDrawObjData aAnchor;
++    aAnchor.maStart = aRange.aStart;
++    aCellRect = rDoc.GetMMRect( aRange.aStart.Col(), aRange.aStart.Row(), 
++      aRange.aStart.Col(), aRange.aStart.Row(), aRange.aStart.Tab() );
++    aAnchor.maStartOffset.Y() = aObjRect.Top()-aCellRect.Top();
++    if (!rDoc.IsNegativePage(nTab))
++        aAnchor.maStartOffset.X() = aObjRect.Left()-aCellRect.Left();
++    else
++        aAnchor.maStartOffset.X() = aCellRect.Right()-aObjRect.Right();
++
++    aAnchor.maEnd = aRange.aEnd;
++    aCellRect = rDoc.GetMMRect( aRange.aEnd.Col(), aRange.aEnd.Row(), 
++      aRange.aEnd.Col(), aRange.aEnd.Row(), aRange.aEnd.Tab() );
++    aAnchor.maEndOffset.Y() = aObjRect.Bottom()-aCellRect.Top();
++    if (!rDoc.IsNegativePage(nTab))
++        aAnchor.maEndOffset.X() = aObjRect.Right()-aCellRect.Left();
++    else
++        aAnchor.maEndOffset.X() = aCellRect.Right()-aObjRect.Left();
++
++    SetCellAnchored( rObj, aAnchor );
++}
++
++void ScDrawLayer::UpdateCellAnchorFromPositionEnd( SdrObject &rObj, const ScDocument &rDoc, SCTAB nTab )
+ {
+-    ScAnchorType eOldAnchorType = GetAnchor( pObj );
++    Rectangle aObjRect(rObj.GetLogicRect());
++    ScRange aRange = rDoc.GetRange( nTab, aObjRect );
+ 
+-    // Ein an der Seite verankertes Objekt zeichnet sich durch eine Anker-Pos
+-	// von (0,1) aus. Das ist ein shabby Trick, der aber funktioniert!
+-	Point aAnchor( 0, eType == SCA_PAGE ? 1 : 0 );
+-	pObj->SetAnchorPos( aAnchor );
++    ScDrawObjData* pAnchor = GetObjData( &rObj, true );
++    pAnchor->maEnd = aRange.aEnd;
++
++    Rectangle aCellRect;
++    aCellRect = rDoc.GetMMRect( aRange.aEnd.Col(), aRange.aEnd.Row(), 
++      aRange.aEnd.Col(), aRange.aEnd.Row(), aRange.aEnd.Tab() );
++    pAnchor->maEndOffset.Y() = aObjRect.Bottom()-aCellRect.Top();
++    if (!rDoc.IsNegativePage(nTab))
++        pAnchor->maEndOffset.X() = aObjRect.Right()-aCellRect.Left();
++    else
++        pAnchor->maEndOffset.X() = aCellRect.Right()-aObjRect.Left();
++}
+ 
+-    if ( eOldAnchorType != eType )
+-        pObj->notifyShapePropertyChange( ::svx::eSpreadsheetAnchor );
++void ScDrawLayer::SetPageAnchored( SdrObject &rObj )
++{
++    DeleteFirstUserDataOfType(&rObj, SC_UD_OBJDATA);
+ }
+ 
+-ScAnchorType ScDrawLayer::GetAnchor( const SdrObject* pObj )
++ScAnchorType ScDrawLayer::GetAnchorType( const SdrObject &rObj )
+ {
+-	Point aAnchor( pObj->GetAnchorPos() );
+-	return ( aAnchor.Y() != 0 ) ? SCA_PAGE : SCA_CELL;
++	//If this object has a cell anchor associated with it
++	//then its cell-anchored, otherwise its page-anchored
++	return ScDrawLayer::GetObjData(const_cast<SdrObject*>(&rObj)) ? SCA_CELL : SCA_PAGE;
+ }
+ 
+ ScDrawObjData* ScDrawLayer::GetObjData( SdrObject* pObj, BOOL bCreate )		// static
+ {
+-	USHORT nCount = pObj ? pObj->GetUserDataCount() : 0;
+-	for( USHORT i = 0; i < nCount; i++ )
+-	{
+-		SdrObjUserData* pData = pObj->GetUserData( i );
+-		if( pData && pData->GetInventor() == SC_DRAWLAYER
+-					&& pData->GetId() == SC_UD_OBJDATA )
+-			return (ScDrawObjData*) pData;
+-	}
++	if (SdrObjUserData *pData = GetFirstUserDataOfType(pObj, SC_UD_OBJDATA))
++		return (ScDrawObjData*) pData;
++
+ 	if( pObj && bCreate )
+ 	{
+ 		ScDrawObjData* pData = new ScDrawObjData;
+@@ -1873,15 +1864,7 @@
+ 
+ ScIMapInfo* ScDrawLayer::GetIMapInfo( SdrObject* pObj )				// static
+ {
+-	USHORT nCount = pObj->GetUserDataCount();
+-	for( USHORT i = 0; i < nCount; i++ )
+-	{
+-		SdrObjUserData* pData = pObj->GetUserData( i );
+-		if( pData && pData->GetInventor() == SC_DRAWLAYER
+-					&& pData->GetId() == SC_UD_IMAPDATA )
+-			return (ScIMapInfo*) pData;
+-	}
+-	return NULL;
++	return (ScIMapInfo*)GetFirstUserDataOfType(pObj, SC_UD_IMAPDATA);
+ }
+ 
+ // static:
+@@ -1934,7 +1917,7 @@
+ 		else if ( pObj->ISA( SdrOle2Obj ) ) // OLE-Objekt
+ 		{
+             // TODO/LEAN: working with visual area needs running state
+-			aGraphSize = ((SdrOle2Obj*)pObj)->GetOrigObjSize();
++			aGraphSize = ((const SdrOle2Obj*)pObj)->GetOrigObjSize();
+ 			bObjSupported = TRUE;
+ 		}
+ 
+@@ -1952,14 +1935,9 @@
+ 
+ ScMacroInfo* ScDrawLayer::GetMacroInfo( SdrObject* pObj, BOOL bCreate )             // static
+ {
+-    USHORT nCount = pObj->GetUserDataCount();
+-    for( USHORT i = 0; i < nCount; i++ )
+-    {
+-        SdrObjUserData* pData = pObj->GetUserData( i );
+-        if( pData && pData->GetInventor() == SC_DRAWLAYER
+-                    && pData->GetId() == SC_UD_MACRODATA )
+-            return (ScMacroInfo*) pData;
+-    }
++    if (SdrObjUserData *pData = GetFirstUserDataOfType(pObj, SC_UD_MACRODATA))
++        return (ScMacroInfo*) pData;
++
+     if ( bCreate )
+     {
+         ScMacroInfo* pData = new ScMacroInfo;
+diff -ru sc.orig/source/core/data/postit.cxx sc/source/core/data/postit.cxx
+--- sc.orig/source/core/data/postit.cxx	2009-06-04 12:39:10.000000000 +0100
++++ sc/source/core/data/postit.cxx	2009-06-04 12:40:23.000000000 +0100
+@@ -102,7 +102,6 @@
+ 
+ void ScCaptionUtil::SetBasicCaptionSettings( SdrCaptionObj& rCaption, bool bShown )
+ {
+-    ScDrawLayer::SetAnchor( &rCaption, SCA_PAGE );
+     SetCaptionLayer( rCaption, bShown );
+     rCaption.SetFixedTail();
+     rCaption.SetSpecialTextBoxShadow();
+diff -ru sc.orig/source/core/tool/detfunc.cxx sc/source/core/tool/detfunc.cxx
+--- sc.orig/source/core/tool/detfunc.cxx	2009-06-04 12:39:11.000000000 +0100
++++ sc/source/core/tool/detfunc.cxx	2009-06-04 12:40:23.000000000 +0100
+@@ -492,7 +492,6 @@
+ 
+ 		pBox->SetMergedItemSetAndBroadcast(rData.GetBoxSet());
+ 
+-		ScDrawLayer::SetAnchor( pBox, SCA_CELL );
+ 		pBox->SetLayer( SC_LAYER_INTERN );
+ 		pPage->InsertObject( pBox );
+ 		pModel->AddCalcUndo( new SdrUndoInsertObj( *pBox ) );
+@@ -534,7 +533,6 @@
+ 	pArrow->NbcSetLogicRect(Rectangle(aStartPos,aEndPos));	//! noetig ???
+ 	pArrow->SetMergedItemSetAndBroadcast(rAttrSet);
+ 
+-	ScDrawLayer::SetAnchor( pArrow, SCA_CELL );
+ 	pArrow->SetLayer( SC_LAYER_INTERN );
+ 	pPage->InsertObject( pArrow );
+ 	pModel->AddCalcUndo( new SdrUndoInsertObj( *pArrow ) );
+@@ -565,7 +563,6 @@
+ 
+ 		pBox->SetMergedItemSetAndBroadcast(rData.GetBoxSet());
+ 
+-		ScDrawLayer::SetAnchor( pBox, SCA_CELL );
+ 		pBox->SetLayer( SC_LAYER_INTERN );
+ 		pPage->InsertObject( pBox );
+ 		pModel->AddCalcUndo( new SdrUndoInsertObj( *pBox ) );
+@@ -600,7 +597,6 @@
+ 
+ 	pArrow->SetMergedItemSetAndBroadcast(rAttrSet);
+ 
+-	ScDrawLayer::SetAnchor( pArrow, SCA_CELL );
+ 	pArrow->SetLayer( SC_LAYER_INTERN );
+ 	pPage->InsertObject( pArrow );
+ 	pModel->AddCalcUndo( new SdrUndoInsertObj( *pArrow ) );
+@@ -668,7 +664,6 @@
+ 
+ 	pCircle->SetMergedItemSetAndBroadcast(rAttrSet);
+ 
+-	ScDrawLayer::SetAnchor( pCircle, SCA_CELL );
+ 	pCircle->SetLayer( SC_LAYER_INTERN );
+ 	pPage->InsertObject( pCircle );
+ 	pModel->AddCalcUndo( new SdrUndoInsertObj( *pCircle ) );
+diff -ru sc.orig/source/filter/xml/XMLExportIterator.hxx sc/source/filter/xml/XMLExportIterator.hxx
+--- sc.orig/source/filter/xml/XMLExportIterator.hxx	2009-06-04 12:39:13.000000000 +0100
++++ sc/source/filter/xml/XMLExportIterator.hxx	2009-06-04 12:40:23.000000000 +0100
+@@ -72,6 +72,8 @@
+ {
+ 	ScAddress	aAddress;
+ 	ScAddress	aEndAddress;
++	sal_Int32       nEndX;
++	sal_Int32       nEndY;
+ 	com::sun::star::uno::Reference<com::sun::star::drawing::XShape> xShape;
+ 
+ 	sal_Bool operator<(const ScMyShape& aShape) const;
+diff -ru sc.orig/source/filter/xml/xmlexprt.cxx sc/source/filter/xml/xmlexprt.cxx
+--- sc.orig/source/filter/xml/xmlexprt.cxx	2009-06-04 12:39:13.000000000 +0100
++++ sc/source/filter/xml/xmlexprt.cxx	2009-06-04 12:51:46.000000000 +0100
+@@ -599,39 +599,21 @@
+ 												else
+ 												{
+ 													++nShapesCount;
+-													SvxShape* pShapeImp(SvxShape::getImplementation(xShape));
+-													if (pShapeImp)
++													if (SvxShape* pShapeImp = SvxShape::getImplementation(xShape))
+ 													{
+-														SdrObject *pSdrObj(pShapeImp->GetSdrObject());
+-														if (pSdrObj)
++														if (SdrObject *pSdrObj = pShapeImp->GetSdrObject())
+ 														{
+-															if (ScDrawLayer::GetAnchor(pSdrObj) == SCA_CELL)
++															if (ScDrawObjData *pAnchor = ScDrawLayer::GetObjData( pSdrObj ))
+ 															{
+-																if (pDoc)
+-																{
+-
+-																	awt::Point aPoint(xShape->getPosition());
+-																	awt::Size aSize(xShape->getSize());
+-																	rtl::OUString sType(xShape->getShapeType());
+-																	Rectangle aRectangle(aPoint.X, aPoint.Y, aPoint.X + aSize.Width, aPoint.Y + aSize.Height);
+-																	if ( sType.equals(sCaptionShape) )
+-																	{
+-                                                                        awt::Point aRelativeCaptionPoint;
+-                                                                        xShapeProp->getPropertyValue( sCaptionPoint ) >>= aRelativeCaptionPoint;
+-                                                                        Point aCoreRelativeCaptionPoint(aRelativeCaptionPoint.X, aRelativeCaptionPoint.Y);
+-                                                                        Point aCoreAbsoluteCaptionPoint(aPoint.X, aPoint.Y);
+-                                                                        aCoreAbsoluteCaptionPoint += aCoreRelativeCaptionPoint;
+-                                                                        aRectangle.Union(Rectangle(aCoreAbsoluteCaptionPoint, aCoreAbsoluteCaptionPoint));
+-																	}
+-																	ScRange aRange(pDoc->GetRange(static_cast<SCTAB>(nTable), aRectangle));
+-																	ScMyShape aMyShape;
+-																	aMyShape.aAddress = aRange.aStart;
+-																	aMyShape.aEndAddress = aRange.aEnd;
+-																	aMyShape.xShape = xShape;
+-																	pSharedData->AddNewShape(aMyShape);
+-																	pSharedData->SetLastColumn(nTable, aRange.aStart.Col());
+-																	pSharedData->SetLastRow(nTable, aRange.aStart.Row());
+-																}
++																ScMyShape aMyShape;
++																aMyShape.aAddress = pAnchor->maStart;
++																aMyShape.aEndAddress = pAnchor->maEnd;
++																aMyShape.nEndX = pAnchor->maEndOffset.X();
++																aMyShape.nEndY = pAnchor->maEndOffset.Y();
++																aMyShape.xShape = xShape;
++																pSharedData->AddNewShape(aMyShape);
++																pSharedData->SetLastColumn(nTable, pAnchor->maStart.Col());
++																pSharedData->SetLastRow(nTable, pAnchor->maStart.Row());
+ 															}
+ 															else
+ 																pSharedData->AddTableShape(nTable, xShape);
+@@ -2585,29 +2567,15 @@
+                     aPoint.X = 2 * aItr->xShape->getPosition().X + aItr->xShape->getSize().Width - aPoint.X;
+ 				if ( !aItr->xShape->getShapeType().equals(sCaptionShape) )
+ 				{
+-					awt::Point aEndPoint;
+ 					Rectangle aEndRec(pDoc->GetMMRect(aItr->aEndAddress.Col(), aItr->aEndAddress.Row(),
+ 						aItr->aEndAddress.Col(), aItr->aEndAddress.Row(), aItr->aEndAddress.Tab()));
+ 					rtl::OUString sEndAddress;
+ 					ScRangeStringConverter::GetStringFromAddress(sEndAddress, aItr->aEndAddress, pDoc, FormulaGrammar::CONV_OOO);
+ 					AddAttribute(XML_NAMESPACE_TABLE, XML_END_CELL_ADDRESS, sEndAddress);
+-                    if (bNegativePage)
+-                        aEndPoint.X = -aEndRec.Right();
+-                    else
+-					    aEndPoint.X = aEndRec.Left();
+-					aEndPoint.Y = aEndRec.Top();
+-					awt::Point aStartPoint(aItr->xShape->getPosition());
+-					awt::Size aSize(aItr->xShape->getSize());
+-                    sal_Int32 nEndX;
+-                    if (bNegativePage)
+-					    nEndX = -aStartPoint.X - aEndPoint.X;
+-                    else
+-					    nEndX = aStartPoint.X + aSize.Width - aEndPoint.X;
+-					sal_Int32 nEndY(aStartPoint.Y + aSize.Height - aEndPoint.Y);
+ 					rtl::OUStringBuffer sBuffer;
+-					GetMM100UnitConverter().convertMeasure(sBuffer, nEndX);
++					GetMM100UnitConverter().convertMeasure(sBuffer, aItr->nEndX);
+ 					AddAttribute(XML_NAMESPACE_TABLE, XML_END_X, sBuffer.makeStringAndClear());
+-					GetMM100UnitConverter().convertMeasure(sBuffer, nEndY);
++					GetMM100UnitConverter().convertMeasure(sBuffer, aItr->nEndY);
+ 					AddAttribute(XML_NAMESPACE_TABLE, XML_END_Y, sBuffer.makeStringAndClear());
+ 				}
+ 				ExportShape(aItr->xShape, &aPoint);
+diff -ru sc.orig/source/filter/xml/xmlimprt.cxx sc/source/filter/xml/xmlimprt.cxx
+--- sc.orig/source/filter/xml/xmlimprt.cxx	2009-06-04 12:39:13.000000000 +0100
++++ sc/source/filter/xml/xmlimprt.cxx	2009-06-04 15:23:47.000000000 +0100
+@@ -2813,7 +2813,7 @@
+         }
+ 
+         aTables.UpdateRowHeights();
+-        aTables.ResizeShapes();
++        aTables.FixupOLEs();
+     }
+     if (GetModel().is())
+     {
+diff -ru sc.orig/source/filter/xml/xmlsubti.cxx sc/source/filter/xml/xmlsubti.cxx
+--- sc.orig/source/filter/xml/xmlsubti.cxx	2009-06-04 12:39:13.000000000 +0100
++++ sc/source/filter/xml/xmlsubti.cxx	2009-06-04 15:17:25.000000000 +0100
+@@ -153,7 +153,7 @@
+ 
+ ScMyTables::ScMyTables(ScXMLImport& rTempImport)
+ 	: rImport(rTempImport),
+-	aResizeShapes(rTempImport),
++	aFixupOLEs(rTempImport),
+ 	nCurrentColStylePos(0),
+ 	nCurrentDrawPage( -1 ),
+ 	nCurrentXShapes( -1 ),
+@@ -757,12 +757,10 @@
+ 	return !((nCurrentSheet != nCurrentXShapes) || !xShapes.is());
+ }
+ 
+-void ScMyTables::AddShape(uno::Reference <drawing::XShape>& rShape,
+-	rtl::OUString* pRangeList,
+-	table::CellAddress& rStartAddress, table::CellAddress& rEndAddress,
+-	sal_Int32 nEndX, sal_Int32 nEndY)
++void ScMyTables::AddOLE(uno::Reference <drawing::XShape>& rShape,
++      const rtl::OUString &rRangeList)
+ {
+-	aResizeShapes.AddShape(rShape, pRangeList, rStartAddress, rEndAddress, nEndX, nEndY);
++      aFixupOLEs.AddOLE(rShape, rRangeList);
+ }
+ 
+ void ScMyTables::AddMatrixRange(
+diff -ru sc.orig/source/filter/xml/xmlsubti.hxx sc/source/filter/xml/xmlsubti.hxx
+--- sc.orig/source/filter/xml/xmlsubti.hxx	2009-06-04 12:39:13.000000000 +0100
++++ sc/source/filter/xml/xmlsubti.hxx	2009-06-04 15:23:00.000000000 +0100
+@@ -114,7 +114,7 @@
+ 
+ 	ScXMLImport&						rImport;
+ 
+-	ScMyShapeResizer                    aResizeShapes;
++	ScMyOLEFixer                        aFixupOLEs;
+ 
+ 	::com::sun::star::uno::Reference< ::com::sun::star::sheet::XSpreadsheet > xCurrentSheet;
+ 	::com::sun::star::uno::Reference< ::com::sun::star::table::XCellRange > xCurrentCellRange;
+@@ -151,7 +151,9 @@
+ 	void								AddColumn(sal_Bool bIsCovered);
+ 	void								NewTable(sal_Int32 nTempSpannedCols);
+ 	void								UpdateRowHeights();
+-	void								ResizeShapes() { aResizeShapes.ResizeShapes(); }
++	void								FixupOLEs() { aFixupOLEs.FixupOLEs(); }
++	sal_Bool							IsOLE(com::sun::star::uno::Reference< com::sun::star::drawing::XShape >& rShape) const
++        { return ScMyOLEFixer::IsOLE(rShape); }
+ 	void								DeleteTable();
+ 	com::sun::star::table::CellAddress	GetRealCellPos();
+ 	void								AddColCount(sal_Int32 nTempColCount);
+@@ -170,11 +172,8 @@
+ 										GetCurrentXShapes();
+ 	sal_Bool							HasDrawPage();
+ 	sal_Bool							HasXShapes();
+-	void								AddShape(com::sun::star::uno::Reference <com::sun::star::drawing::XShape>& rShape,
+-												rtl::OUString* pRangeList,
+-												com::sun::star::table::CellAddress& rStartAddress,
+-												com::sun::star::table::CellAddress& rEndAddress,
+-												sal_Int32 nEndX, sal_Int32 nEndY);
++	void								AddOLE(com::sun::star::uno::Reference <com::sun::star::drawing::XShape>& rShape,
++												const rtl::OUString &rRangeList);
+ 
+     void                                AddMatrixRange( sal_Int32 nStartColumn,
+                                                 sal_Int32 nStartRow,
+diff -ru sc.orig/source/filter/xml/XMLTableShapeImportHelper.cxx sc/source/filter/xml/XMLTableShapeImportHelper.cxx
+--- sc.orig/source/filter/xml/XMLTableShapeImportHelper.cxx	2009-06-04 12:39:13.000000000 +0100
++++ sc/source/filter/xml/XMLTableShapeImportHelper.cxx	2009-06-04 15:17:38.000000000 +0100
+@@ -36,6 +36,7 @@
+ #include "drwlayer.hxx"
+ #include "xmlannoi.hxx"
+ #include "rangeutl.hxx"
++#include "userdat.hxx"
+ #include "docuno.hxx"
+ #include "sheetdata.hxx"
+ #include <xmloff/nmspmap.hxx>
+@@ -90,6 +91,11 @@
+ 	{
+         if (!pAnnotationContext)
+         {
++			ScDrawObjData aAnchor;
++			aAnchor.maStart = ScAddress(aStartCell.Column, aStartCell.Row, aStartCell.Sheet);
++			awt::Point aStartPoint(rShape->getPosition());
++			aAnchor.maStartOffset = Point(aStartPoint.X, aStartPoint.Y);
++
+ 		    sal_Int32 nEndX(-1);
+ 		    sal_Int32 nEndY(-1);
+ 		    sal_Int16 nAttrCount = xAttrList.is() ? xAttrList->getLength() : 0;
+@@ -111,11 +117,18 @@
+ 				    {
+ 					    sal_Int32 nOffset(0);
+ 					    ScRangeStringConverter::GetAddressFromString(aEndCell, rValue, static_cast<ScXMLImport&>(mrImporter).GetDocument(), ::formula::FormulaGrammar::CONV_OOO, nOffset);
++					    aAnchor.maEnd = ScAddress(aEndCell.Column, aEndCell.Row, aEndCell.Sheet);
+ 				    }
+ 				    else if (IsXMLToken(aLocalName, XML_END_X))
++				    {
+ 					    static_cast<ScXMLImport&>(mrImporter).GetMM100UnitConverter().convertMeasure(nEndX, rValue);
++					    aAnchor.maEndOffset.X() = nEndX;
++				    }
+ 				    else if (IsXMLToken(aLocalName, XML_END_Y))
++				    {
+ 					    static_cast<ScXMLImport&>(mrImporter).GetMM100UnitConverter().convertMeasure(nEndY, rValue);
++					    aAnchor.maEndOffset.Y() = nEndY;
++				    }
+ 				    else if (IsXMLToken(aLocalName, XML_TABLE_BACKGROUND))
+ 					    if (IsXMLToken(rValue, XML_TRUE))
+ 						    nLayerID = SC_LAYER_BACK;
+@@ -128,39 +141,28 @@
+ 		    }
+             SetLayer(rShape, nLayerID, rShape->getShapeType());
+ 
+-		    if (!bOnTable)
++		    if (SvxShape* pShapeImp = SvxShape::getImplementation(rShape))
+ 		    {
+-			    rTables.AddShape(rShape,
+-				    pRangeList, aStartCell, aEndCell, nEndX, nEndY);
+-			    SvxShape* pShapeImp = SvxShape::getImplementation(rShape);
+-			    if (pShapeImp)
+-			    {
+-				    SdrObject *pSdrObj = pShapeImp->GetSdrObject();
+-				    if (pSdrObj)
+-					    ScDrawLayer::SetAnchor(pSdrObj, SCA_CELL);
+-			    }
++				if (SdrObject *pSdrObj = pShapeImp->GetSdrObject())
++				{
++					if (!bOnTable)
++						ScDrawLayer::SetCellAnchored(*pSdrObj, aAnchor);
++					else
++						ScDrawLayer::SetPageAnchored(*pSdrObj);
++				}
+ 		    }
+-		    else
+-		    {
+-                if ( pRangeList )
+-                {
+-                    // #i78086# If there are notification ranges, the ChartListener must be created
+-                    // also when anchored to the sheet
+-                    // -> call AddShape with invalid cell position (checked in ScMyShapeResizer::ResizeShapes)
+-
+-                    table::CellAddress aInvalidPos( -1, -1, -1 );
+-                    rTables.AddShape(rShape,
+-                        pRangeList, aInvalidPos, aInvalidPos, 0, 0);
+-                }
+ 
+-			    SvxShape* pShapeImp = SvxShape::getImplementation(rShape);
+-			    if (pShapeImp)
+-			    {
+-				    SdrObject *pSdrObj = pShapeImp->GetSdrObject();
+-				    if (pSdrObj)
+-					    ScDrawLayer::SetAnchor(pSdrObj, SCA_PAGE);
+-			    }
+-		    }
++            if ( bOnTable && pRangeList )
++            {
++                // #i78086# If there are notification ranges, the ChartListener must be created
++                // also when anchored to the sheet
++                // -> call AddOLE with invalid cell position (checked in ScMyShapeResizer::ResizeShapes)
++
++				if (rTables.IsOLE(rShape))
++                	rTables.AddOLE(rShape, *pRangeList);
++            }
++
++			delete pRangeList;
+         }
+         else // shape is annotation
+         {
+diff -ru sc.orig/source/filter/xml/XMLTableShapeResizer.cxx sc/source/filter/xml/XMLTableShapeResizer.cxx
+--- sc.orig/source/filter/xml/XMLTableShapeResizer.cxx	2009-06-04 12:39:13.000000000 +0100
++++ sc/source/filter/xml/XMLTableShapeResizer.cxx	2009-06-04 15:27:39.000000000 +0100
+@@ -51,38 +51,38 @@
+ using ::std::vector;
+ using ::rtl::OUString;
+ 
+-ScMyShapeResizer::ScMyShapeResizer(ScXMLImport& rTempImport)
++ScMyOLEFixer::ScMyOLEFixer(ScXMLImport& rTempImport)
+     : rImport(rTempImport),
+     aShapes(),
+ 	pCollection(NULL)
+ {
+ }
+ 
+-ScMyShapeResizer::~ScMyShapeResizer()
++ScMyOLEFixer::~ScMyOLEFixer()
+ {
+ }
+ 
+-sal_Bool ScMyShapeResizer::IsOLE(uno::Reference< drawing::XShape >& rShape) const
++sal_Bool ScMyOLEFixer::IsOLE(uno::Reference< drawing::XShape >& rShape)
+ {
+ 	return rShape->getShapeType().equals(rtl::OUString(RTL_CONSTASCII_USTRINGPARAM("com.sun.star.drawing.OLE2Shape")));
+ }
+ 
+-void ScMyShapeResizer::CreateChartListener(ScDocument* pDoc,
++void ScMyOLEFixer::CreateChartListener(ScDocument* pDoc,
+ 	const rtl::OUString& rName,
+-	const rtl::OUString* pRangeList)
++	const rtl::OUString& rRangeList)
+ {
+-    if (!pDoc || !pRangeList)
+-        // These are minimum required.
++    // This is the minimum required.
++    if (!pDoc)
+         return;
+ 
+-    if (!pRangeList->getLength())
++    if (!rRangeList.getLength())
+     {
+         pDoc->AddOLEObjectToCollection(rName);
+         return;
+     }
+ 
+     OUString aRangeStr;
+-    ScRangeStringConverter::GetStringFromXMLRangeString(aRangeStr, *pRangeList, pDoc);
++    ScRangeStringConverter::GetStringFromXMLRangeString(aRangeStr, rRangeList, pDoc);
+     if (!aRangeStr.getLength())
+     {
+         pDoc->AddOLEObjectToCollection(rName);
+@@ -112,271 +112,45 @@
+     }
+ }
+ 
+-void ScMyShapeResizer::AddShape(uno::Reference <drawing::XShape>& rShape,
+-	rtl::OUString* pRangeList,
+-	table::CellAddress& rStartAddress, table::CellAddress& rEndAddress,
+-	sal_Int32 nEndX, sal_Int32 nEndY)
++void ScMyOLEFixer::AddOLE(uno::Reference <drawing::XShape>& rShape,
++	const rtl::OUString &rRangeList)
+ {
+-	ScMyToResizeShape aShape;
++	ScMyToFixupOLE aShape;
+ 	aShape.xShape.set(rShape);
+-	aShape.pRangeList = pRangeList;
+-	aShape.aEndCell = rEndAddress;
+-	aShape.aStartCell = rStartAddress;
+-	aShape.nEndY = nEndY;
+-	aShape.nEndX = nEndX;
++	aShape.sRangeList = rRangeList;
+ 	aShapes.push_back(aShape);
+ }
+ 
+-void ScMyShapeResizer::GetNewShapeSizePos(ScDocument* pDoc, const Rectangle& rStartRect,
+-                                          const table::CellAddress& rEndCell,
+-                                          awt::Point& rPoint, awt::Size& rSize,
+-                                          sal_Int32& rEndX, sal_Int32& rEndY) const
+-{
+-	awt::Point aRefPoint;
+-    BOOL bNegativePage(pDoc->IsNegativePage(rEndCell.Sheet));
+-    if (bNegativePage)
+-        aRefPoint.X = rStartRect.Right();
+-    else
+-	    aRefPoint.X = rStartRect.Left();
+-	aRefPoint.Y = rStartRect.Top();
+-	Rectangle aRect(pDoc->GetMMRect(
+-		static_cast<SCCOL>(rEndCell.Column), static_cast<SCROW>(rEndCell.Row),
+-		static_cast<SCCOL>(rEndCell.Column), static_cast<SCROW>(rEndCell.Row), rEndCell.Sheet ));
+-    if (bNegativePage)
+-        rEndX = -rEndX + aRect.Right();
+-    else
+-	    rEndX += aRect.Left();
+-	rEndY += aRect.Top();
+-	rPoint.X += aRefPoint.X;
+-    if (bNegativePage)
+-    {
+-	    if (rPoint.X < rStartRect.Left())
+-		    rPoint.X = rStartRect.Left() + 2; // increment by 2 100th_mm because the cellwidth is internal in twips
+-    }
+-    else
+-    {
+-	    if (rPoint.X > rStartRect.Right())
+-		    rPoint.X = rStartRect.Right() - 2; // decrement by 2 100th_mm because the cellwidth is internal in twips
+-    }
+-	rPoint.Y += aRefPoint.Y;
+-	if (rPoint.Y > rStartRect.Bottom())
+-		rPoint.Y = rStartRect.Bottom() - 2; // decrement by 2 100th_mm because the cellheight is internal in twips
+-    if (bNegativePage)
+-    {
+-        rSize.Width = -(rEndX - rPoint.X);
+-    }
+-    else
+-	    rSize.Width = rEndX - rPoint.X;
+-	rSize.Height = rEndY - rPoint.Y;
+-}
+-
+-void ScMyShapeResizer::ResizeShapes()
++void ScMyOLEFixer::FixupOLEs()
+ {
+ 	if (!aShapes.empty() && rImport.GetModel().is())
+ 	{
+-		rtl::OUString sRowHeight(RTL_CONSTASCII_USTRINGPARAM(SC_UNONAME_CELLHGT));
+ 		rtl::OUString sPersistName (RTL_CONSTASCII_USTRINGPARAM("PersistName"));
+-		rtl::OUString sCaptionPoint( RTL_CONSTASCII_USTRINGPARAM( "CaptionPoint" ));
+-        rtl::OUString sConnectorShape( RTL_CONSTASCII_USTRINGPARAM("com.sun.star.drawing.ConnectorShape") );
+-        rtl::OUString sCaptionShape( RTL_CONSTASCII_USTRINGPARAM("com.sun.star.drawing.CaptionShape") );
+-        rtl::OUString sStartShape(RTL_CONSTASCII_USTRINGPARAM("StartShape"));
+-        rtl::OUString sEndShape(RTL_CONSTASCII_USTRINGPARAM("EndShape"));
+-        rtl::OUString sStartPosition(RTL_CONSTASCII_USTRINGPARAM("StartPosition"));
+-        rtl::OUString sEndPosition(RTL_CONSTASCII_USTRINGPARAM("EndPosition"));
+-		uno::Reference<table::XCellRange> xTableRow;
+-		uno::Reference<sheet::XSpreadsheet> xSheet;
+-		uno::Reference<table::XTableRows> xTableRows;
+-		sal_Int32 nOldRow(-1);
+-		sal_Int32 nOldSheet(-1);
+-		ScMyToResizeShapes::iterator aItr(aShapes.begin());
+-		ScMyToResizeShapes::iterator aEndItr(aShapes.end());
+-		uno::Reference <sheet::XSpreadsheetDocument> xSpreadDoc( rImport.GetModel(), uno::UNO_QUERY );
+-		if ( xSpreadDoc.is() )
++		ScMyToFixupOLEs::iterator aItr(aShapes.begin());
++		ScMyToFixupOLEs::iterator aEndItr(aShapes.end());
++		ScDocument* pDoc(rImport.GetDocument());
++
++		rImport.LockSolarMutex();
++
++		while (aItr != aEndItr)
+ 		{
+-			uno::Reference<container::XIndexAccess> xIndex( xSpreadDoc->getSheets(), uno::UNO_QUERY );
+-			ScDocument* pDoc(rImport.GetDocument());
+-			if ( pDoc && xIndex.is() )
++            // #i78086# also call CreateChartListener for invalid position (anchored to sheet)
++			if (!IsOLE(aItr->xShape))
++                DBG_ERROR("Only OLEs should be in here now");
++
++			if (IsOLE(aItr->xShape))
+ 			{
+-				rImport.LockSolarMutex();
+-				while (aItr != aEndItr)
+-				{
+-                    // #i78086# invalid cell position is used to call CreateChartListener only
+-                    if ( aItr->aEndCell.Sheet >= 0 )
+-                    {
+-    					if ((nOldSheet != aItr->aEndCell.Sheet) || !xSheet.is())
+-    					{
+-    						nOldSheet = aItr->aEndCell.Sheet;
+-                            xSheet.set(xIndex->getByIndex(nOldSheet), uno::UNO_QUERY);
+-    						if (xSheet.is())
+-    						{
+-    							uno::Reference<table::XColumnRowRange> xColumnRowRange (xSheet, uno::UNO_QUERY);
+-    							if (xColumnRowRange.is())
+-    								xTableRows = xColumnRowRange->getRows();
+-    						}
+-    					}
+-    					if (xTableRows.is())
+-    					{
+-    						if (nOldRow != aItr->aEndCell.Row || !xTableRow.is())
+-    						{
+-    							nOldRow = aItr->aEndCell.Row;
+-    							xTableRows->getByIndex(nOldRow) >>= xTableRow;
+-    						}
+-    						if (xTableRow.is())
+-    						{
+-    							uno::Reference <beans::XPropertySet> xRowProperties(xTableRow, uno::UNO_QUERY);
+-    							if (xRowProperties.is())
+-    							{
+-    								sal_Int32 nHeight;
+-    								if (xRowProperties->getPropertyValue(sRowHeight) >>= nHeight)
+-    								{
+-    									Rectangle aRec = pDoc->GetMMRect(static_cast<SCCOL>(aItr->aStartCell.Column), static_cast<SCROW>(aItr->aStartCell.Row),
+-    										static_cast<SCCOL>(aItr->aStartCell.Column), static_cast<SCROW>(aItr->aStartCell.Row), aItr->aStartCell.Sheet);
+-    									awt::Point aPoint(aItr->xShape->getPosition());
+-    									awt::Size aSize(aItr->xShape->getSize());
+-                                        if (pDoc->IsNegativePage(static_cast<SCTAB>(nOldSheet)))
+-                                            aPoint.X += aSize.Width;
+-    									if (aItr->nEndY >= 0 && aItr->nEndX >= 0)
+-    									{
+-                                            if (aItr->xShape->getShapeType().equals(sConnectorShape))
+-                                            {
+-                                                //#103122#; handle connected Connectorshapes
+-                                                uno::Reference<beans::XPropertySet> xShapeProps (aItr->xShape, uno::UNO_QUERY);
+-                                                if(xShapeProps.is())
+-                                                {
+-                                                    uno::Reference<drawing::XShape> xStartShape(xShapeProps->getPropertyValue(	sStartShape ), uno::UNO_QUERY);
+-                                                    uno::Reference<drawing::XShape> xEndShape(xShapeProps->getPropertyValue( sEndShape ), uno::UNO_QUERY);
+-                                                    if (!xStartShape.is() && !xEndShape.is())
+-                                                    {
+-    										            awt::Size aOldSize(aSize);
+-                                                        GetNewShapeSizePos(pDoc, aRec, aItr->aEndCell, aPoint, aSize, aItr->nEndX, aItr->nEndY);
+-    	                                                aItr->xShape->setPosition(aPoint);
+-    	                                                if( (aSize.Width != aOldSize.Width) ||
+-    		                                                (aSize.Height != aOldSize.Height) )
+-    		                                                aItr->xShape->setSize(aSize);
+-                                                    }
+-                                                    else if (xStartShape.is() && xEndShape.is())
+-                                                    {
+-                                                        // do nothing, because they are connected
+-                                                    }
+-                                                    else
+-                                                    {
+-                                                        // only one point is connected, the other should be moved
+-
+-                                                        rtl::OUString sProperty;
+-                                                        if (xStartShape.is())
+-                                                        {
+-                                                            awt::Point aEndPoint;
+-                                                            xShapeProps->getPropertyValue(sEndPosition) >>= aEndPoint;
+-                                                            aPoint.X = aRec.Left() + aEndPoint.X;
+-                                                            aPoint.Y = aRec.Top() + aEndPoint.Y;
+-                                                            sProperty = sEndPosition;
+-                                                        }
+-                                                        else
+-                                                        {
+-                                                            awt::Point aStartPoint;
+-                                                            xShapeProps->getPropertyValue(sStartPosition) >>= aStartPoint;
+-                                                            aPoint.X = aRec.Left() + aStartPoint.X;
+-                                                            aPoint.Y = aRec.Top() + aStartPoint.Y;
+-                                                            sProperty = sStartPosition;
+-                                                        }
+-                                                        xShapeProps->setPropertyValue(sProperty, uno::makeAny(aPoint));
+-                                                    }
+-                                                }
+-                                            }
+-                                            else
+-                                            {
+-    										    awt::Size aOldSize(aSize);
+-                                                GetNewShapeSizePos(pDoc, aRec, aItr->aEndCell, aPoint, aSize, aItr->nEndX, aItr->nEndY);
+-                                                if (pDoc->IsNegativePage(static_cast<SCTAB>(nOldSheet)))
+-                                                    aPoint.X -= aSize.Width;
+-    	                                        aItr->xShape->setPosition(aPoint);
+-    	                                        if( (aSize.Width != aOldSize.Width) ||
+-    		                                        (aSize.Height != aOldSize.Height) )
+-    		                                        aItr->xShape->setSize(aSize);
+-                                            }
+-    									}
+-    									else
+-    									{
+-    										if (aItr->xShape->getShapeType().equals(sCaptionShape))
+-    										{
+-    											Rectangle aRectangle(aPoint.X, aPoint.Y, aPoint.X + aSize.Width, aPoint.Y + aSize.Height);
+-
+-    											awt::Point aCaptionPoint;
+-    											uno::Reference< beans::XPropertySet > xShapeProps(aItr->xShape, uno::UNO_QUERY);
+-    											if (xShapeProps.is())
+-    											{
+-    												try
+-    												{
+-    													xShapeProps->getPropertyValue( sCaptionPoint ) >>= aCaptionPoint;
+-    												}
+-    												catch ( uno::Exception& )
+-    												{
+-    													DBG_ERROR("This Captionshape has no CaptionPoint property.");
+-    												}
+-    											}
+-    											Point aCorePoint(aPoint.X, aPoint.Y);
+-    											Point aCoreCaptionPoint(aCaptionPoint.X, aCaptionPoint.Y);
+-    											aCoreCaptionPoint += aCorePoint;
+-    											aRectangle.Union(Rectangle(aCoreCaptionPoint, aCoreCaptionPoint));
+-
+-    											Point aBeforeRightBottomPoint(aRectangle.BottomRight());
+-
+-    											aRectangle += aRec.TopLeft();
+-    											if (aRectangle.Left() > aRec.Right())
+-    												aRectangle -= (Point(aRectangle.Left() - aRec.Right() + 2, 0));
+-    											if (aRectangle.Top() > aRec.Bottom())
+-    												aRectangle -= (Point(0, aRectangle.Top() - aRec.Bottom() + 2));
+-
+-    											Point aDifferencePoint(aRectangle.BottomRight() - aBeforeRightBottomPoint);
+-    											aPoint.X += aDifferencePoint.X();
+-    											aPoint.Y += aDifferencePoint.Y();
+-
+-    											aItr->xShape->setPosition(aPoint);
+-    										}
+-    										else
+-    										{
+-    											// #96159# it is possible, that shapes have a negative position
+-    											// this is now handled here
+-    											DBG_ERROR("no or negative end address of this shape");
+-    											awt::Point aRefPoint;
+-    											aRefPoint.X = aRec.Left();
+-    											aRefPoint.Y = aRec.Top();
+-    											aPoint.X += aRefPoint.X;
+-    											if (aPoint.X > aRec.Right())
+-    												aPoint.X = aRec.Right() - 2; // decrement by 2 100th_mm because the cellheight is internal in twips
+-    											aPoint.Y += aRefPoint.Y;
+-    											if (aPoint.Y > aRec.Bottom())
+-    												aPoint.Y = aRec.Bottom() - 2; // decrement by 2 100th_mm because the cellheight is internal in twips
+-    											aItr->xShape->setPosition(aPoint);
+-    										}
+-    									}
+-    								}
+-    							}
+-    						}
+-    					}
+-    					else
+-					{
+-    						DBG_ERROR("something wents wrong");
+-					}
+-                    }
+-                    // #i78086# call CreateChartListener also for invalid position (anchored to sheet)
+-					if (IsOLE(aItr->xShape))
+-					{
+-						uno::Reference < beans::XPropertySet > xShapeProps ( aItr->xShape, uno::UNO_QUERY );
+-						uno::Reference < beans::XPropertySetInfo > xShapeInfo(xShapeProps->getPropertySetInfo());
+-                        rtl::OUString sName;
+-						if (xShapeProps.is() && xShapeInfo.is() && xShapeInfo->hasPropertyByName(sPersistName) &&
+-                            (xShapeProps->getPropertyValue(sPersistName) >>= sName))
+-							CreateChartListener(pDoc, sName, aItr->pRangeList);
+-					}
+-					if (aItr->pRangeList)
+-						delete aItr->pRangeList;
+-					aItr = aShapes.erase(aItr);
+-				}
+-				rImport.UnlockSolarMutex();
+-//				if (pCollection)
+-//					pDoc->SetChartListenerCollection(pCollection);
++				uno::Reference < beans::XPropertySet > xShapeProps ( aItr->xShape, uno::UNO_QUERY );
++				uno::Reference < beans::XPropertySetInfo > xShapeInfo(xShapeProps->getPropertySetInfo());
++                rtl::OUString sName;
++
++				if (pDoc && xShapeProps.is() && xShapeInfo.is() && xShapeInfo->hasPropertyByName(sPersistName) &&
++                  (xShapeProps->getPropertyValue(sPersistName) >>= sName))
++				    CreateChartListener(pDoc, sName, aItr->sRangeList);
+ 			}
++			aItr = aShapes.erase(aItr);
+ 		}
++
++		rImport.UnlockSolarMutex();
+ 	}
+ }
+diff -ru sc.orig/source/filter/xml/XMLTableShapeResizer.hxx sc/source/filter/xml/XMLTableShapeResizer.hxx
+--- sc.orig/source/filter/xml/XMLTableShapeResizer.hxx	2009-06-04 12:39:13.000000000 +0100
++++ sc/source/filter/xml/XMLTableShapeResizer.hxx	2009-06-04 15:22:38.000000000 +0100
+@@ -41,44 +41,31 @@
+ class ScDocument;
+ class Rectangle;
+ 
+-struct ScMyToResizeShape
++struct ScMyToFixupOLE
+ {
+ 	com::sun::star::uno::Reference <com::sun::star::drawing::XShape> xShape;
+-	rtl::OUString* pRangeList;
+-	com::sun::star::table::CellAddress	aEndCell;
+-	com::sun::star::table::CellAddress	aStartCell;
+-	sal_Int32 nEndX;
+-	sal_Int32 nEndY;
+-
+-	ScMyToResizeShape() : pRangeList(NULL) {}
++	rtl::OUString sRangeList;
+ };
+ 
+-typedef std::list<ScMyToResizeShape> ScMyToResizeShapes;
++typedef std::list<ScMyToFixupOLE> ScMyToFixupOLEs;
+ 
+-class ScMyShapeResizer
++class ScMyOLEFixer
+ {
+ 	ScXMLImport&				rImport;
+-	ScMyToResizeShapes			aShapes;
++	ScMyToFixupOLEs				aShapes;
+ 	ScChartListenerCollection*	pCollection;
+ 
+-	sal_Bool IsOLE(com::sun::star::uno::Reference< com::sun::star::drawing::XShape >& rShape) const;
+ 	void CreateChartListener(ScDocument* pDoc,
+ 		const rtl::OUString& rName,
+-		const rtl::OUString* pRangeList);
+-    void GetNewShapeSizePos(ScDocument* pDoc, const Rectangle& rStartRect,
+-                            const com::sun::star::table::CellAddress& rEndCell,
+-                            com::sun::star::awt::Point& rPoint, com::sun::star::awt::Size& rSize,
+-                            sal_Int32& rEndX, sal_Int32& rEndY) const;
++		const rtl::OUString& rRangeList);
+ public:
+-	ScMyShapeResizer(ScXMLImport& rImport);
+-	~ScMyShapeResizer();
++	ScMyOLEFixer(ScXMLImport& rImport);
++	~ScMyOLEFixer();
+ 
+-	void	AddShape(com::sun::star::uno::Reference <com::sun::star::drawing::XShape>& rShape,
+-					rtl::OUString* pRangeList,
+-					com::sun::star::table::CellAddress& rStartAddress,
+-					com::sun::star::table::CellAddress& rEndAddress,
+-					sal_Int32 nEndX, sal_Int32 nEndY);
+-	void	ResizeShapes();
++	static sal_Bool IsOLE(com::sun::star::uno::Reference< com::sun::star::drawing::XShape >& rShape);
++	void	AddOLE(com::sun::star::uno::Reference <com::sun::star::drawing::XShape>& rShape,
++					const rtl::OUString &rRangeList);
++	void	FixupOLEs();
+ };
+ 
+ #endif
+diff -ru sc.orig/source/ui/Accessibility/AccessibleDocument.cxx sc/source/ui/Accessibility/AccessibleDocument.cxx
+--- sc.orig/source/ui/Accessibility/AccessibleDocument.cxx	2009-06-04 12:39:41.000000000 +0100
++++ sc/source/ui/Accessibility/AccessibleDocument.cxx	2009-06-04 12:40:23.000000000 +0100
+@@ -44,6 +44,7 @@
+ #include "drawview.hxx"
+ #include "gridwin.hxx"
+ #include "AccessibleEditObject.hxx"
++#include "userdat.hxx"
+ #include "scresid.hxx"
+ #ifndef SC_SC_HRC
+ #include "sc.hrc"
+@@ -1017,35 +1018,10 @@
+         uno::Reference<beans::XPropertySet> xShapeProp(xShape, uno::UNO_QUERY);
+ 	    if (pShapeImp && xShapeProp.is())
+ 	    {
+-		    SdrObject *pSdrObj = pShapeImp->GetSdrObject();
+-		    if (pSdrObj)
++		    if (SdrObject *pSdrObj = pShapeImp->GetSdrObject())
+ 		    {
+-			    if (ScDrawLayer::GetAnchor(pSdrObj) == SCA_CELL)
+-			    {
+-                    ScDocument* pDoc = mpViewShell->GetViewData()->GetDocument();
+-				    if (pDoc)
+-				    {
+-                        rtl::OUString sCaptionShape(RTL_CONSTASCII_USTRINGPARAM("com.sun.star.drawing.CaptionShape"));
+-					    awt::Point aPoint(xShape->getPosition());
+-					    awt::Size aSize(xShape->getSize());
+-					    rtl::OUString sType(xShape->getShapeType());
+-					    Rectangle aRectangle(aPoint.X, aPoint.Y, aPoint.X + aSize.Width, aPoint.Y + aSize.Height);
+-					    if ( sType.equals(sCaptionShape) )
+-					    {
+-						    awt::Point aRelativeCaptionPoint;
+-                            rtl::OUString sCaptionPoint( RTL_CONSTASCII_USTRINGPARAM( "CaptionPoint" ));
+-						    xShapeProp->getPropertyValue( sCaptionPoint ) >>= aRelativeCaptionPoint;
+-						    Point aCoreRelativeCaptionPoint(aRelativeCaptionPoint.X, aRelativeCaptionPoint.Y);
+-						    Point aCoreAbsoluteCaptionPoint(aPoint.X, aPoint.Y);
+-						    aCoreAbsoluteCaptionPoint += aCoreRelativeCaptionPoint;
+-						    aRectangle.Union(Rectangle(aCoreAbsoluteCaptionPoint, aCoreAbsoluteCaptionPoint));
+-					    }
+-					    ScRange aRange = pDoc->GetRange(mpAccessibleDocument->getVisibleTable(), aRectangle);
+-                        pAddress = new ScAddress(aRange.aStart);
+-				    }
+-			    }
+-//			    else
+-//				    do nothing, because it is always a NULL Pointer
++				if (ScDrawObjData *pAnchor = ScDrawLayer::GetObjData(pSdrObj))
++					return new ScAddress(pAnchor->maStart);
+ 		    }
+ 	    }
+     }
+diff -ru sc.orig/source/ui/drawfunc/drawsh2.cxx sc/source/ui/drawfunc/drawsh2.cxx
+--- sc.orig/source/ui/drawfunc/drawsh2.cxx	2009-06-04 12:39:40.000000000 +0100
++++ sc/source/ui/drawfunc/drawsh2.cxx	2009-06-04 12:40:23.000000000 +0100
+@@ -115,7 +115,7 @@
+ 
+ 	if ( !bDisableAnchor )
+ 	{
+-	    switch( pView->GetAnchor() )
++	    switch( pView->GetAnchorType() )
+ 	    {
+ 		case SCA_PAGE:
+ 	        rSet.Put( SfxBoolItem( SID_ANCHOR_PAGE, TRUE ) );
+diff -ru sc.orig/source/ui/drawfunc/drawsh5.cxx sc/source/ui/drawfunc/drawsh5.cxx
+--- sc.orig/source/ui/drawfunc/drawsh5.cxx	2009-06-04 12:39:40.000000000 +0100
++++ sc/source/ui/drawfunc/drawsh5.cxx	2009-06-04 12:40:23.000000000 +0100
+@@ -397,26 +397,26 @@
+             break;
+ 
+         case SID_ANCHOR_PAGE:
+-            pView->SetAnchor( SCA_PAGE );
++            pView->SetPageAnchored();
+             rBindings.Invalidate( SID_ANCHOR_PAGE );
+             rBindings.Invalidate( SID_ANCHOR_CELL );
+             break;
+ 
+         case SID_ANCHOR_CELL:
+-            pView->SetAnchor( SCA_CELL );
++            pView->SetCellAnchored();
+             rBindings.Invalidate( SID_ANCHOR_PAGE );
+             rBindings.Invalidate( SID_ANCHOR_CELL );
+             break;
+ 
+         case SID_ANCHOR_TOGGLE:
+             {
+-                switch( pView->GetAnchor() )
++                switch( pView->GetAnchorType() )
+                 {
+                     case SCA_CELL:
+-                    pView->SetAnchor( SCA_PAGE );
++                    pView->SetPageAnchored();
+                     break;
+                     default:
+-                    pView->SetAnchor( SCA_CELL );
++                    pView->SetCellAnchored();
+                     break;
+                 }
+             }
+diff -ru sc.orig/source/ui/inc/drawview.hxx sc/source/ui/inc/drawview.hxx
+--- sc.orig/source/ui/inc/drawview.hxx	2009-06-04 12:39:46.000000000 +0100
++++ sc/source/ui/inc/drawview.hxx	2009-06-04 12:40:23.000000000 +0100
+@@ -100,8 +100,9 @@
+ 
+ 	void			CalcNormScale( Fraction& rFractX, Fraction& rFractY ) const;
+ 
+-	void			SetAnchor( ScAnchorType );
+-	ScAnchorType	GetAnchor() const;
++	void			SetPageAnchored();
++	void			SetCellAnchored();
++	ScAnchorType	GetAnchorType() const;
+ 
+ 	void			VCAddWin( Window* pWin );
+ 	void			VCRemoveWin( Window* pWin );
+diff -ru sc.orig/source/ui/unoobj/shapeuno.cxx sc/source/ui/unoobj/shapeuno.cxx
+--- sc.orig/source/ui/unoobj/shapeuno.cxx	2009-06-04 12:39:29.000000000 +0100
++++ sc/source/ui/unoobj/shapeuno.cxx	2009-06-04 12:40:23.000000000 +0100
+@@ -365,20 +365,9 @@
+                                 table::CellRangeAddress aAddress = xRangeAdd->getRangeAddress();
+                                 if (nTab == aAddress.Sheet)
+                                 {
+-                                    if (aAddress.StartRow != aAddress.EndRow) //should be a Spreadsheet
+-                                    {
+-                                        DBG_ASSERT(aAddress.StartRow == 0 && aAddress.EndRow == MAXROW &&
+-                                            aAddress.StartColumn == 0 && aAddress.EndColumn == MAXCOL, "here should be a XSpreadsheet");
+-			                            ScDrawLayer::SetAnchor(pObj, SCA_PAGE);
+-                                    }
+-                                    else
+-                                    {
+-                                        DBG_ASSERT(aAddress.StartRow == aAddress.EndRow &&
+-                                            aAddress.StartColumn == aAddress.EndColumn, "here should be a XCell");
+-			                            ScDrawLayer::SetAnchor(pObj, SCA_CELL);
+-                                    }
+                                     Rectangle aRect(pDoc->GetMMRect( static_cast<SCCOL>(aAddress.StartColumn), static_cast<SCROW>(aAddress.StartRow),
+                                         static_cast<SCCOL>(aAddress.EndColumn), static_cast<SCROW>(aAddress.EndRow), aAddress.Sheet ));
++                                    awt::Point aRelPoint;
+                                     uno::Reference<drawing::XShape> xShape( mxShapeAgg, uno::UNO_QUERY );
+                                     if (xShape.is())
+                                     {
+@@ -397,7 +386,8 @@
+                                         awt::Size aUnoSize;
+                                         awt::Point aCaptionPoint;
+                                         ScRange aRange;
+-                                        awt::Point aUnoPoint(lcl_GetRelativePos( xShape, pDoc, nTab, aRange, aUnoSize, aCaptionPoint ));
++                                        aRelPoint = lcl_GetRelativePos( xShape, pDoc, nTab, aRange, aUnoSize, aCaptionPoint );
++                                        awt::Point aUnoPoint(aRelPoint);
+ 
+                                         aUnoPoint.X += aPoint.X();
+                                         aUnoPoint.Y += aPoint.Y();
+@@ -426,6 +416,24 @@
+                                         xShape->setPosition(aUnoPoint);
+                                         pDocSh->SetModified();
+                                     }
++
++                                    if (aAddress.StartRow != aAddress.EndRow) //should be a Spreadsheet
++                                    {
++                                        DBG_ASSERT(aAddress.StartRow == 0 && aAddress.EndRow == MAXROW &&
++                                            aAddress.StartColumn == 0 && aAddress.EndColumn == MAXCOL, "here should be a XSpreadsheet");
++			                            ScDrawLayer::SetPageAnchored(*pObj);
++                                    }
++                                    else
++                                    {
++                                        DBG_ASSERT(aAddress.StartRow == aAddress.EndRow &&
++                                            aAddress.StartColumn == aAddress.EndColumn, "here should be a XCell");
++			                            ScDrawObjData aAnchor;
++										aAnchor.maStart = ScAddress(aAddress.StartColumn, aAddress.StartRow, aAddress.Sheet);
++										aAnchor.maStartOffset = Point(aRelPoint.X, aRelPoint.Y);
++			                            ScDrawLayer::SetCellAnchored(*pObj, aAnchor);
++			                            //Currently we've only got a start anchor, not an end-anchor, so generate that now
++			                            ScDrawLayer::UpdateCellAnchorFromPositionEnd(*pObj, *pDoc, aAddress.Sheet);
++                                    }
+                                 }
+ 					        }
+ 				        }
+@@ -485,7 +493,7 @@
+                                 uno::Reference<drawing::XShape> xShape( mxShapeAgg, uno::UNO_QUERY );
+                                 if (xShape.is())
+                                 {
+-                                    if (ScDrawLayer::GetAnchor(pObj) == SCA_PAGE)
++                                    if (ScDrawLayer::GetAnchorType(*pObj) == SCA_PAGE)
+                                     {
+                                         awt::Point aPoint(xShape->getPosition());
+                                         awt::Size aSize(xShape->getSize());
+@@ -512,7 +520,7 @@
+                                         xShape->setPosition(aPoint);
+                                         pDocSh->SetModified();
+                                     }
+-                                    else if (ScDrawLayer::GetAnchor(pObj) == SCA_CELL)
++                                    else if (ScDrawLayer::GetAnchorType(*pObj) == SCA_CELL)
+                                     {
+                                         awt::Size aUnoSize;
+                                         awt::Point aCaptionPoint;
+@@ -583,7 +591,7 @@
+                                 uno::Reference<drawing::XShape> xShape( mxShapeAgg, uno::UNO_QUERY );
+                                 if (xShape.is())
+                                 {
+-                                    if (ScDrawLayer::GetAnchor(pObj) == SCA_PAGE)
++                                    if (ScDrawLayer::GetAnchorType(*pObj) == SCA_PAGE)
+                                     {
+                                         awt::Point aPoint = xShape->getPosition();
+                                         awt::Point aCaptionPoint;
+@@ -596,7 +604,7 @@
+                                         xShape->setPosition(aPoint);
+                                         pDocSh->SetModified();
+                                     }
+-                                    else if (ScDrawLayer::GetAnchor(pObj) == SCA_CELL)
++                                    else if (ScDrawLayer::GetAnchorType(*pObj) == SCA_CELL)
+                                     {
+                                         awt::Size aUnoSize;
+                                         awt::Point aCaptionPoint;
+@@ -663,23 +671,10 @@
+ 				        {
+ 					        ScDocShell* pDocSh = (ScDocShell*)pObjSh;
+                 		    uno::Reference< uno::XInterface > xAnchor;
+-			                if (ScDrawLayer::GetAnchor(pObj) == SCA_CELL)
+-                            {
+-                                uno::Reference<drawing::XShape> xShape( mxShapeAgg, uno::UNO_QUERY );
+-                                if (xShape.is())
+-                                {
+-                                    awt::Size aUnoSize;
+-                                    awt::Point aCaptionPoint;
+-                                    ScRange aRange;
+-                                    awt::Point aUnoPoint(lcl_GetRelativePos( xShape, pDoc, nTab, aRange, aUnoSize, aCaptionPoint ));
+-
+-    						        xAnchor.set(static_cast<cppu::OWeakObject*>(new ScCellObj( pDocSh, aRange.aStart )));
+-                                }
+-                            }
++			                if (ScDrawObjData *pAnchor = ScDrawLayer::GetObjDataTab(pObj, nTab))
++    						    xAnchor.set(static_cast<cppu::OWeakObject*>(new ScCellObj( pDocSh, pAnchor->maStart)));
+                             else
+-                            {
+     						    xAnchor.set(static_cast<cppu::OWeakObject*>(new ScTableSheetObj( pDocSh, nTab )));
+-                            }
+                             aAny <<= xAnchor;
+                         }
+ 					}
+@@ -722,7 +717,7 @@
+                         uno::Reference<drawing::XShape> xShape( mxShapeAgg, uno::UNO_QUERY );
+                         if (xShape.is())
+                         {
+-			                if (ScDrawLayer::GetAnchor(pObj) == SCA_CELL)
++			                if (ScDrawLayer::GetAnchorType(*pObj) == SCA_CELL)
+                             {
+                                 awt::Size aUnoSize;
+                                 awt::Point aCaptionPoint;
+@@ -782,7 +777,7 @@
+                         if (xShape.is())
+                         {
+                 		    uno::Reference< uno::XInterface > xAnchor;
+-			                if (ScDrawLayer::GetAnchor(pObj) == SCA_CELL)
++			                if (ScDrawLayer::GetAnchorType(*pObj) == SCA_CELL)
+                             {
+                                 awt::Size aUnoSize;
+                                 awt::Point aCaptionPoint;
+diff -ru sc.orig/source/ui/view/drawvie3.cxx sc/source/ui/view/drawvie3.cxx
+--- sc.orig/source/ui/view/drawvie3.cxx	2009-06-04 12:39:42.000000000 +0100
++++ sc/source/ui/view/drawvie3.cxx	2009-06-05 08:47:05.000000000 +0100
+@@ -77,7 +77,7 @@
+ 
+ // Verankerung setzen
+ 
+-void ScDrawView::SetAnchor( ScAnchorType eType )
++void ScDrawView::SetPageAnchored()
+ {
+ 	SdrObject* pObj = NULL;
+ 	if( AreObjectsMarked() )
+@@ -87,7 +87,7 @@
+ 		for( ULONG i=0; i<nCount; i++ )
+ 		{
+ 			pObj = pMark->GetMark(i)->GetMarkedSdrObj();
+-			ScDrawLayer::SetAnchor( pObj, eType );
++			ScDrawLayer::SetPageAnchored( *pObj );
+ 		}
+ 
+ 		if ( pViewData )
+@@ -95,7 +95,28 @@
+ 	}
+ }
+ 
+-ScAnchorType ScDrawView::GetAnchor() const
++void ScDrawView::SetCellAnchored()
++{
++    if (!pDoc)
++        return;
++
++	SdrObject* pObj = NULL;
++	if( AreObjectsMarked() )
++	{
++		const SdrMarkList* pMark = &GetMarkedObjectList();
++		ULONG nCount = pMark->GetMarkCount();
++		for( ULONG i=0; i<nCount; i++ )
++		{
++			pObj = pMark->GetMark(i)->GetMarkedSdrObj();
++			ScDrawLayer::SetCellAnchoredFromPosition(*pObj, *pDoc, nTab);
++		}
++
++		if ( pViewData )
++			pViewData->GetDocShell()->SetDrawModified();
++	}
++}
++
++ScAnchorType ScDrawView::GetAnchorType() const
+ {
+ 	BOOL bPage = FALSE;
+ 	BOOL bCell = FALSE;
+@@ -108,7 +129,7 @@
+ 		for( ULONG i=0; i<nCount; i++ )
+ 		{
+ 			pObj = pMark->GetMark(i)->GetMarkedSdrObj();
+-			if( ScDrawLayer::GetAnchor( pObj ) == SCA_CELL )
++			if( ScDrawLayer::GetAnchorType( *pObj ) == SCA_CELL )
+ 				bCell =TRUE;
+ 			else
+ 				bPage = TRUE;
+@@ -138,6 +159,20 @@
+ 		if ( nTab == ((ScTabSizeChangedHint&)rHint).GetTab() )
+ 			UpdateWorkArea();
+ 	}
++	else if ( rHint.ISA( SdrHint ) )
++	{
++		if (const SdrHint* pSdrHint = PTR_CAST( SdrHint, &rHint ))
++		{
++			//Update the anchors of any non note object that is cell anchored which has
++			//been moved since the last anchors for its position was calculated
++			if (pSdrHint->GetKind() == HINT_OBJCHG || pSdrHint->GetKind() == HINT_OBJINSERTED)
++				if (SdrObject* pObj = const_cast<SdrObject*>(pSdrHint->GetObject()))
++					if (ScDrawObjData *pAnchor = ScDrawLayer::GetObjData(pObj))
++						if (!pAnchor->mbNote && pAnchor->maLastRect != pObj->GetLogicRect())
++							ScDrawLayer::SetCellAnchoredFromPosition(*pObj, *pDoc, nTab);
++		}
++		FmFormView::Notify( rBC,rHint );
++	}
+ 	else
+ 		FmFormView::Notify( rBC,rHint );
+ }
+diff -ru sc.orig/source/ui/view/drawview.cxx sc/source/ui/view/drawview.cxx
+--- sc.orig/source/ui/view/drawview.cxx	2009-06-04 12:39:41.000000000 +0100
++++ sc/source/ui/view/drawview.cxx	2009-06-04 12:40:23.000000000 +0100
+@@ -164,40 +164,11 @@
+ 	UINT32 nCount = rMrkList.GetMarkCount();
+ 	for(UINT32 nPos=0; nPos<nCount; nPos++ )
+ 	{
+-		const SdrObject* pObj = rMrkList.GetMark(nPos)->GetMarkedSdrObj();
+-		if(ScDrawLayer::GetAnchor(pObj) == SCA_CELL)
++		SdrObject* pObj = rMrkList.GetMark(nPos)->GetMarkedSdrObj();
++		if (ScDrawObjData *pAnchor = ScDrawLayer::GetObjDataTab(pObj, nTab))
+ 		{
+-			const INT32 nDelta = 1;
+-
+-			Rectangle aBoundRect = pObj->GetCurrentBoundRect();
+-			Point aPos;
+-			if (bNegativePage)
+-			{
+-				aPos = aBoundRect.TopRight();
+-				aPos.X() = -aPos.X();			// so the loop below is the same
+-			}
+-			else
+-				aPos = aBoundRect.TopLeft();
+-			long nPosX = (long) (aPos.X() / HMM_PER_TWIPS) + nDelta;
+-			long nPosY = (long) (aPos.Y() / HMM_PER_TWIPS) + nDelta;
+-
+-			SCCOL nCol;
+-			INT32 nWidth = 0;
+-
+-			for(nCol=0; nCol<=MAXCOL && nWidth<=nPosX; nCol++)
+-				nWidth += pDoc->GetColWidth(nCol,nTab);
+-
+-			if(nCol > 0)
+-				--nCol;
+-
+-            SCROW nRow = nPosY <= 0 ? 0 : pDoc->FastGetRowForHeight( nTab,
+-                    (ULONG) nPosY);
+-			if(nRow > 0)
+-				--nRow;
+-
+-			ScTabView* pView = pViewData->GetView();
+-			ScAddress aScAddress(nCol, nRow, nTab);
+-			pView->CreateAnchorHandles(aHdl, aScAddress);
++			if (ScTabView* pView = pViewData->GetView())
++				pView->CreateAnchorHandles(aHdl, pAnchor->maStart);
+ 		}
+ 	}
+ }

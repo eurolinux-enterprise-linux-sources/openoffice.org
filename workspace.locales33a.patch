@@ -1,0 +1,676 @@
+
+# HG changeset patch
+# User Eike Rathke <erack@openoffice.org>
+# Date 1276211347 -7200
+# Node ID 19e0e06e8f278785697e732c433ffcbc44bf9a7d
+# Parent  345841e986e1126342cd6a80e195c69806840911
+locales33a: #i101567# added Maithili_India [mai-IN] locale data; contributed by <it46>
+
+diff -r 345841e986e1 -r 19e0e06e8f27 i18npool/source/localedata/data/localedata_others.map
+--- a/i18npool/source/localedata/data/localedata_others.map	Fri Jun 11 00:38:55 2010 +0200
++++ b/i18npool/source/localedata/data/localedata_others.map	Fri Jun 11 01:09:07 2010 +0200
+@@ -37,6 +37,7 @@
+ getAllCalendars_lg_UG;
+ getAllCalendars_ln_CD;
+ getAllCalendars_lo_LA;
++getAllCalendars_mai_IN;
+ getAllCalendars_ml_IN;
+ getAllCalendars_mn_MN;
+ getAllCalendars_mr_IN;
+@@ -113,6 +114,7 @@
+ getAllCurrencies_lg_UG;
+ getAllCurrencies_ln_CD;
+ getAllCurrencies_lo_LA;
++getAllCurrencies_mai_IN;
+ getAllCurrencies_ml_IN;
+ getAllCurrencies_mn_MN;
+ getAllCurrencies_mr_IN;
+@@ -189,6 +191,7 @@
+ getAllFormats0_lg_UG;
+ getAllFormats0_ln_CD;
+ getAllFormats0_lo_LA;
++getAllFormats0_mai_IN;
+ getAllFormats0_ml_IN;
+ getAllFormats0_mn_MN;
+ getAllFormats0_mr_IN;
+@@ -265,6 +268,7 @@
+ getBreakIteratorRules_lg_UG;
+ getBreakIteratorRules_ln_CD;
+ getBreakIteratorRules_lo_LA;
++getBreakIteratorRules_mai_IN;
+ getBreakIteratorRules_ml_IN;
+ getBreakIteratorRules_mn_MN;
+ getBreakIteratorRules_mr_IN;
+@@ -341,6 +345,7 @@
+ getCollationOptions_lg_UG;
+ getCollationOptions_ln_CD;
+ getCollationOptions_lo_LA;
++getCollationOptions_mai_IN;
+ getCollationOptions_ml_IN;
+ getCollationOptions_mn_MN;
+ getCollationOptions_mr_IN;
+@@ -417,6 +422,7 @@
+ getCollatorImplementation_lg_UG;
+ getCollatorImplementation_ln_CD;
+ getCollatorImplementation_lo_LA;
++getCollatorImplementation_mai_IN;
+ getCollatorImplementation_ml_IN;
+ getCollatorImplementation_mn_MN;
+ getCollatorImplementation_mr_IN;
+@@ -493,6 +499,7 @@
+ getContinuousNumberingLevels_lg_UG;
+ getContinuousNumberingLevels_ln_CD;
+ getContinuousNumberingLevels_lo_LA;
++getContinuousNumberingLevels_mai_IN;
+ getContinuousNumberingLevels_ml_IN;
+ getContinuousNumberingLevels_mn_MN;
+ getContinuousNumberingLevels_mr_IN;
+@@ -569,6 +576,7 @@
+ getFollowPageWords_lg_UG;
+ getFollowPageWords_ln_CD;
+ getFollowPageWords_lo_LA;
++getFollowPageWords_mai_IN;
+ getFollowPageWords_ml_IN;
+ getFollowPageWords_mn_MN;
+ getFollowPageWords_mr_IN;
+@@ -645,6 +653,7 @@
+ getForbiddenCharacters_lg_UG;
+ getForbiddenCharacters_ln_CD;
+ getForbiddenCharacters_lo_LA;
++getForbiddenCharacters_mai_IN;
+ getForbiddenCharacters_ml_IN;
+ getForbiddenCharacters_mn_MN;
+ getForbiddenCharacters_mr_IN;
+@@ -721,6 +730,7 @@
+ getIndexAlgorithm_lg_UG;
+ getIndexAlgorithm_ln_CD;
+ getIndexAlgorithm_lo_LA;
++getIndexAlgorithm_mai_IN;
+ getIndexAlgorithm_ml_IN;
+ getIndexAlgorithm_mn_MN;
+ getIndexAlgorithm_mr_IN;
+@@ -797,6 +807,7 @@
+ getLCInfo_lg_UG;
+ getLCInfo_ln_CD;
+ getLCInfo_lo_LA;
++getLCInfo_mai_IN;
+ getLCInfo_ml_IN;
+ getLCInfo_mn_MN;
+ getLCInfo_mr_IN;
+@@ -873,6 +884,7 @@
+ getLocaleItem_lg_UG;
+ getLocaleItem_ln_CD;
+ getLocaleItem_lo_LA;
++getLocaleItem_mai_IN;
+ getLocaleItem_ml_IN;
+ getLocaleItem_mn_MN;
+ getLocaleItem_mr_IN;
+@@ -949,6 +961,7 @@
+ getOutlineNumberingLevels_lg_UG;
+ getOutlineNumberingLevels_ln_CD;
+ getOutlineNumberingLevels_lo_LA;
++getOutlineNumberingLevels_mai_IN;
+ getOutlineNumberingLevels_ml_IN;
+ getOutlineNumberingLevels_mn_MN;
+ getOutlineNumberingLevels_mr_IN;
+@@ -1025,6 +1038,7 @@
+ getReservedWords_lg_UG;
+ getReservedWords_ln_CD;
+ getReservedWords_lo_LA;
++getReservedWords_mai_IN;
+ getReservedWords_ml_IN;
+ getReservedWords_mn_MN;
+ getReservedWords_mr_IN;
+@@ -1101,6 +1115,7 @@
+ getSearchOptions_lg_UG;
+ getSearchOptions_ln_CD;
+ getSearchOptions_lo_LA;
++getSearchOptions_mai_IN;
+ getSearchOptions_ml_IN;
+ getSearchOptions_mn_MN;
+ getSearchOptions_mr_IN;
+@@ -1177,6 +1192,7 @@
+ getTransliterations_lg_UG;
+ getTransliterations_ln_CD;
+ getTransliterations_lo_LA;
++getTransliterations_mai_IN;
+ getTransliterations_ml_IN;
+ getTransliterations_mn_MN;
+ getTransliterations_mr_IN;
+@@ -1253,6 +1269,7 @@
+ getUnicodeScripts_lg_UG;
+ getUnicodeScripts_ln_CD;
+ getUnicodeScripts_lo_LA;
++getUnicodeScripts_mai_IN;
+ getUnicodeScripts_ml_IN;
+ getUnicodeScripts_mn_MN;
+ getUnicodeScripts_mr_IN;
+diff -r 345841e986e1 -r 19e0e06e8f27 i18npool/source/localedata/data/mai_IN.xml
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/i18npool/source/localedata/data/mai_IN.xml	Fri Jun 11 01:09:07 2010 +0200
+@@ -0,0 +1,357 @@
++<?xml version="1.0" encoding="UTF-8" ?>
++<!DOCTYPE Locale SYSTEM 'locale.dtd'>
++<Locale versionDTD="2.0.3" allowUpdateFromCLDR="no" version="1.0">
++  <LC_INFO>
++    <Language>
++      <LangID>mai</LangID>
++      <DefaultName>Maithili</DefaultName>
++    </Language>
++    <Country>
++      <CountryID>IN</CountryID>
++      <DefaultName>India</DefaultName>
++    </Country>
++  </LC_INFO>
++  <LC_CTYPE unoid="generic">
++    <Separators>
++      <DateSeparator>.</DateSeparator>
++      <ThousandSeparator>,</ThousandSeparator>
++      <DecimalSeparator>.</DecimalSeparator>
++      <TimeSeparator>:</TimeSeparator>
++      <Time100SecSeparator>.</Time100SecSeparator>
++      <ListSeparator>;</ListSeparator>
++      <LongDateDayOfWeekSeparator>, </LongDateDayOfWeekSeparator>
++      <LongDateDaySeparator>, </LongDateDaySeparator>
++      <LongDateMonthSeparator> </LongDateMonthSeparator>
++      <LongDateYearSeparator> </LongDateYearSeparator>
++    </Separators>
++    <Markers>
++      <QuotationStart>‘</QuotationStart>
++      <QuotationEnd>’</QuotationEnd>
++      <DoubleQuotationStart>“</DoubleQuotationStart>
++      <DoubleQuotationEnd>”</DoubleQuotationEnd>
++    </Markers>
++    <TimeAM>पूर्वाह्न</TimeAM>
++    <TimePM>अपराह्न</TimePM>
++    <MeasurementSystem>metric</MeasurementSystem>
++  </LC_CTYPE>
++  <LC_FORMAT replaceFrom="[CURRENCY]" replaceTo="[$रू.-645]">
++    <FormatElement msgid="FixedFormatskey1" default="true" type="medium" usage="FIXED_NUMBER" formatindex="0">
++      <FormatCode>General</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="FixedFormatskey2" default="true" type="short" usage="FIXED_NUMBER" formatindex="1">
++      <FormatCode>0</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="FixedFormatskey3" default="false" type="medium" usage="FIXED_NUMBER" formatindex="2">
++      <FormatCode>0.00</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="FixedFormatskey4" default="false" type="short" usage="FIXED_NUMBER" formatindex="3">
++      <FormatCode>#,##0</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="FixedFormatskey5" default="false" type="medium" usage="FIXED_NUMBER" formatindex="4">
++      <FormatCode>#,##0.00</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="FixedFormatskey6" default="false" type="medium" usage="FIXED_NUMBER" formatindex="5">
++      <FormatCode>#,###.00</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="ScientificFormatskey1" default="true" type="medium" usage="SCIENTIFIC_NUMBER" formatindex="6">
++      <FormatCode>0.00E+00</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="ScientificFormatskey2" default="false" type="medium" usage="SCIENTIFIC_NUMBER" formatindex="7">
++      <FormatCode>0.00E+000</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="PercentFormatskey1" default="true" type="short" usage="PERCENT_NUMBER" formatindex="8">
++      <FormatCode>0%</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="PercentFormatskey2" default="true" type="long" usage="PERCENT_NUMBER" formatindex="9">
++      <FormatCode>0.00%</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="CurrencyFormatskey1" default="true" type="short" usage="CURRENCY" formatindex="12">
++      <FormatCode>[CURRENCY]#,##0;-[CURRENCY]#,##0</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="CurrencyFormatskey2" default="false" type="medium" usage="CURRENCY" formatindex="13">
++      <FormatCode>[CURRENCY]#,##0.00;-[CURRENCY]#,##0.00</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="CurrencyFormatskey3" default="false" type="medium" usage="CURRENCY" formatindex="14">
++      <FormatCode>[CURRENCY]#,##0;[RED]-[CURRENCY]#,##0</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="CurrencyFormatskey4" default="true" type="medium" usage="CURRENCY" formatindex="15">
++      <FormatCode>[CURRENCY]#,##0.00;[RED]-[CURRENCY]#,##0.00</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="CurrencyFormatskey5" default="false" type="medium" usage="CURRENCY" formatindex="16">
++      <FormatCode>CCC#,##0.00</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="CurrencyFormatskey6" default="false" type="medium" usage="CURRENCY" formatindex="17">
++      <FormatCode>[CURRENCY]#,##0.--;[RED]-[CURRENCY]#,##0.--</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey11" default="true" type="short" usage="DATE" formatindex="18">
++      <FormatCode>D.MM.YY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey14" default="true" type="long" usage="DATE" formatindex="19">
++      <FormatCode>NNNNDD, MMMM YYYY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey6" default="true" type="medium" usage="DATE" formatindex="20">
++      <FormatCode>DD.MM.YY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey5" default="false" type="medium" usage="DATE" formatindex="21">
++      <FormatCode>DD.MM.YYYY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey15" default="false" type="long" usage="DATE" formatindex="22">
++      <FormatCode>D, MMM YY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey16" default="false" type="long" usage="DATE" formatindex="23">
++      <FormatCode>D, MMM YYYY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey21" default="false" type="long" usage="DATE" formatindex="24">
++      <FormatCode>D, MMM YYYY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey17" default="false" type="long" usage="DATE" formatindex="25">
++      <FormatCode>D, MMMM YYYY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey22" default="false" type="long" usage="DATE" formatindex="26">
++      <FormatCode>D, MMMM YY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey10" default="false" type="medium" usage="DATE" formatindex="27">
++      <FormatCode>NN, DD.MMM.YY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey18" default="false" type="long" usage="DATE" formatindex="28">
++      <FormatCode>NN, D, MMM YY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey19" default="false" type="long" usage="DATE" formatindex="29">
++      <FormatCode>NN, D, MMMM YYYY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey20" default="false" type="long" usage="DATE" formatindex="30">
++      <FormatCode>NNNND, MMMM YYYY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey12" default="false" type="short" usage="DATE" formatindex="31">
++      <FormatCode>MM.DD</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey7" default="false" type="medium" usage="DATE" formatindex="32">
++      <FormatCode>YY-MM-DD</FormatCode>
++      <DefaultName>ISO 8601</DefaultName>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey8" default="false" type="medium" usage="DATE" formatindex="33">
++      <FormatCode>YYYY-MM-DD</FormatCode>
++      <DefaultName>ISO 8601</DefaultName>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey1" default="false" type="medium" usage="DATE" formatindex="34">
++      <FormatCode>MM.YY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey2" default="false" type="medium" usage="DATE" formatindex="35">
++      <FormatCode>MMM.DD</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey3" default="false" type="medium" usage="DATE" formatindex="36">
++      <FormatCode>MMMM</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey4" default="false" type="medium" usage="DATE" formatindex="37">
++      <FormatCode>QQ YY</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateFormatskey9" default="false" type="medium" usage="DATE" formatindex="38">
++      <FormatCode>WW</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="TimeFormatskey1" default="false" type="short" usage="TIME" formatindex="39">
++      <FormatCode>HH:MM</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="TimeFormatskey2" default="false" type="medium" usage="TIME" formatindex="40">
++      <FormatCode>HH:MM:SS</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="TimeFormatskey3" default="true" type="short" usage="TIME" formatindex="41">
++      <FormatCode>HH:MM AM/PM</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="TimeFormatskey4" default="true" type="medium" usage="TIME" formatindex="42">
++      <FormatCode>HH:MM:SS AM/PM</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="TimeFormatskey5" default="false" type="medium" usage="TIME" formatindex="43">
++      <FormatCode>[HH]:MM:SS</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="TimeFormatskey6" default="false" type="short" usage="TIME" formatindex="44">
++      <FormatCode>MM:SS.00</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="TimeFormatskey7" default="false" type="medium" usage="TIME" formatindex="45">
++      <FormatCode>[HH]:MM:SS.00</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateTimeFormatskey1" default="true" type="medium" usage="DATE_TIME" formatindex="46">
++      <FormatCode>DD.MM.YY HH:MM</FormatCode>
++    </FormatElement>
++    <FormatElement msgid="DateTimeFormatskey2" default="false" type="medium" usage="DATE_TIME" formatindex="47">
++      <FormatCode>DD.MM.YYYY HH:MM:SS AM/PM</FormatCode>
++    </FormatElement>
++  </LC_FORMAT>
++  <LC_COLLATION>
++    <Collator default="true" unoid="alphanumeric"/>
++    <CollationOptions>
++      <TransliterationModules>IGNORE_CASE</TransliterationModules>
++    </CollationOptions>
++  </LC_COLLATION>
++  <LC_SEARCH>
++    <SearchOptions>
++      <TransliterationModules>IGNORE_CASE</TransliterationModules>
++    </SearchOptions>
++  </LC_SEARCH>
++  <LC_INDEX>
++    <IndexKey phonetic="false" default="true" unoid="alphanumeric">अ-ह</IndexKey>
++    <UnicodeScript>14</UnicodeScript>
++    <FollowPageWord>आ.पृ.</FollowPageWord>
++    <FollowPageWord>आ.पृ.</FollowPageWord>
++  </LC_INDEX>
++  <LC_CALENDAR>
++    <Calendar unoid="gregorian" default="true">
++      <DaysOfWeek>
++        <Day>
++          <DayID>sun</DayID>
++          <DefaultAbbrvName>रवि</DefaultAbbrvName>
++          <DefaultFullName>रविवार</DefaultFullName>
++        </Day>
++        <Day>
++          <DayID>mon</DayID>
++          <DefaultAbbrvName>सोम</DefaultAbbrvName>
++          <DefaultFullName>सोमवार</DefaultFullName>
++        </Day>
++        <Day>
++          <DayID>tue</DayID>
++          <DefaultAbbrvName>मंगल</DefaultAbbrvName>
++          <DefaultFullName>मंगलवार</DefaultFullName>
++        </Day>
++        <Day>
++          <DayID>wed</DayID>
++          <DefaultAbbrvName>बुध</DefaultAbbrvName>
++          <DefaultFullName>बुधवार</DefaultFullName>
++        </Day>
++        <Day>
++          <DayID>thu</DayID>
++          <DefaultAbbrvName>गुरु</DefaultAbbrvName>
++          <DefaultFullName>गुरुवार</DefaultFullName>
++        </Day>
++        <Day>
++          <DayID>fri</DayID>
++          <DefaultAbbrvName>शुक्र</DefaultAbbrvName>
++          <DefaultFullName>शुक्रवार</DefaultFullName>
++        </Day>
++        <Day>
++          <DayID>sat</DayID>
++          <DefaultAbbrvName>शनि</DefaultAbbrvName>
++          <DefaultFullName>शनिवार</DefaultFullName>
++        </Day>
++      </DaysOfWeek>
++      <MonthsOfYear>
++        <Month>
++          <MonthID>jan</MonthID>
++          <DefaultAbbrvName>जन</DefaultAbbrvName>
++          <DefaultFullName>जनवरी</DefaultFullName>
++        </Month>
++        <Month>
++          <MonthID>feb</MonthID>
++          <DefaultAbbrvName>फर</DefaultAbbrvName>
++          <DefaultFullName>फरवरी</DefaultFullName>
++        </Month>
++        <Month>
++          <MonthID>mar</MonthID>
++          <DefaultAbbrvName>मार्च</DefaultAbbrvName>
++          <DefaultFullName>मार्च</DefaultFullName>
++        </Month>
++        <Month>
++          <MonthID>apr</MonthID>
++          <DefaultAbbrvName>अप्रै</DefaultAbbrvName>
++          <DefaultFullName>अप्रैल</DefaultFullName>
++        </Month>
++        <Month>
++          <MonthID>may</MonthID>
++          <DefaultAbbrvName>मई</DefaultAbbrvName>
++          <DefaultFullName>मई</DefaultFullName>
++        </Month>
++        <Month>
++          <MonthID>jun</MonthID>
++          <DefaultAbbrvName>जून</DefaultAbbrvName>
++          <DefaultFullName>जून</DefaultFullName>
++        </Month>
++        <Month>
++          <MonthID>jul</MonthID>
++          <DefaultAbbrvName>जुला</DefaultAbbrvName>
++          <DefaultFullName>जुलाई</DefaultFullName>
++        </Month>
++        <Month>
++          <MonthID>aug</MonthID>
++          <DefaultAbbrvName>अग</DefaultAbbrvName>
++          <DefaultFullName>अगस्त</DefaultFullName>
++        </Month>
++        <Month>
++          <MonthID>sep</MonthID>
++          <DefaultAbbrvName>सित</DefaultAbbrvName>
++          <DefaultFullName>सितम्बर</DefaultFullName>
++        </Month>
++        <Month>
++          <MonthID>oct</MonthID>
++          <DefaultAbbrvName>अक्टू</DefaultAbbrvName>
++          <DefaultFullName>अक्टूबर</DefaultFullName>
++        </Month>
++        <Month>
++          <MonthID>nov</MonthID>
++          <DefaultAbbrvName>नव</DefaultAbbrvName>
++          <DefaultFullName>नवम्बर</DefaultFullName>
++        </Month>
++        <Month>
++          <MonthID>dec</MonthID>
++          <DefaultAbbrvName>दिस</DefaultAbbrvName>
++          <DefaultFullName>दिसम्बर</DefaultFullName>
++        </Month>
++      </MonthsOfYear>
++      <Eras>
++        <Era>
++          <EraID>bc</EraID>
++          <DefaultAbbrvName>ई.पू.</DefaultAbbrvName>
++          <DefaultFullName>ईस्वी पूर्व</DefaultFullName>
++        </Era>
++        <Era>
++          <EraID>ad</EraID>
++          <DefaultAbbrvName>ई.</DefaultAbbrvName>
++          <DefaultFullName>ईस्वी</DefaultFullName>
++        </Era>
++      </Eras>
++      <StartDayOfWeek>
++        <DayID>sun</DayID>
++      </StartDayOfWeek>
++      <MinimalDaysInFirstWeek>1</MinimalDaysInFirstWeek>
++    </Calendar>
++  </LC_CALENDAR>
++  <LC_CURRENCY>
++    <Currency default="true" usedInCompatibleFormatCodes="true">
++      <CurrencyID>INR</CurrencyID>
++      <CurrencySymbol>रू.</CurrencySymbol>
++      <BankSymbol>INR</BankSymbol>
++      <CurrencyName>रुपया</CurrencyName>
++      <DecimalPlaces>2</DecimalPlaces>
++    </Currency>
++  </LC_CURRENCY>
++  <LC_TRANSLITERATION>
++    <Transliteration unoid="LOWERCASE_UPPERCASE"/>
++    <Transliteration unoid="UPPERCASE_LOWERCASE"/>
++    <Transliteration unoid="IGNORE_CASE"/>
++  </LC_TRANSLITERATION>
++  <LC_MISC>
++    <ReservedWords>
++      <trueWord>सही</trueWord>
++      <falseWord>गलत</falseWord>
++      <quarter1Word>पहिल तीन मास</quarter1Word>
++      <quarter2Word>दोसर तीन मास</quarter2Word>
++      <quarter3Word>तेसर तीन मास</quarter3Word>
++      <quarter4Word>चौथा तीन मास</quarter4Word>
++      <aboveWord>उप्पर</aboveWord>
++      <belowWord>नीच्चाँ</belowWord>
++      <quarter1Abbreviation>पहिल चौथाई</quarter1Abbreviation>
++      <quarter2Abbreviation>दोसर चौथाई</quarter2Abbreviation>
++      <quarter3Abbreviation>तेसर चौथाई</quarter3Abbreviation>
++      <quarter4Abbreviation>चौथा चौथाई</quarter4Abbreviation>
++    </ReservedWords>
++  </LC_MISC>
++  <LC_NumberingLevel>
++    <NumberingLevel NumType="4" Prefix=" "  Suffix=")"/>
++    <NumberingLevel NumType="4" Prefix="("  Suffix="."/>
++    <NumberingLevel NumType="4" Prefix="("  Suffix=")"/>
++    <NumberingLevel NumType="2" Prefix=" "  Suffix="."/>
++    <NumberingLevel NumType="0" Prefix=" "  Suffix=")"/>
++    <NumberingLevel NumType="1" Prefix=" "  Suffix=")"/>
++    <NumberingLevel NumType="1" Prefix="("  Suffix=")"/>
++    <NumberingLevel NumType="3" Prefix=" "  Suffix="."/>
++  </LC_NumberingLevel>
++  <LC_OutLineNumberingLevel ref="en_US"/>
++</Locale>
++<!--Version 1.0  -->
+diff -r 345841e986e1 -r 19e0e06e8f27 i18npool/source/localedata/data/makefile.mk
+--- a/i18npool/source/localedata/data/makefile.mk	Fri Jun 11 00:38:55 2010 +0200
++++ b/i18npool/source/localedata/data/makefile.mk	Fri Jun 11 01:09:07 2010 +0200
+@@ -173,6 +173,7 @@
+     $(MISC)$/localedata_ln_CD.cxx  \
+     $(MISC)$/localedata_lo_LA.cxx  \
+     $(MISC)$/localedata_lt_LT.cxx  \
++    $(MISC)$/localedata_mai_IN.cxx  \
+     $(MISC)$/localedata_lv_LV.cxx  \
+     $(MISC)$/localedata_mk_MK.cxx  \
+     $(MISC)$/localedata_ml_IN.cxx  \
+@@ -362,6 +363,7 @@
+ 	$(SLO)$/localedata_lb_LU.obj	\
+ 	$(SLO)$/localedata_lt_LT.obj	\
+ 	$(SLO)$/localedata_lv_LV.obj	\
++	$(SLO)$/localedata_mai_IN.obj	\
+ 	$(SLO)$/localedata_mk_MK.obj	\
+ 	$(SLO)$/localedata_mt_MT.obj	\
+ 	$(SLO)$/localedata_nb_NO.obj	\
+diff -r 345841e986e1 -r 19e0e06e8f27 i18npool/source/localedata/localedata.cxx
+--- a/i18npool/source/localedata/localedata.cxx	Fri Jun 11 00:38:55 2010 +0200
++++ b/i18npool/source/localedata/localedata.cxx	Fri Jun 11 01:09:07 2010 +0200
+@@ -252,6 +252,7 @@
+     { "ar_OM",  lcl_DATA_OTHERS },
+     { "ug_CN",  lcl_DATA_OTHERS },
+     { "om_ET",  lcl_DATA_OTHERS },
++    { "mai_IN", lcl_DATA_OTHERS }
+ };
+ 
+ static const sal_Unicode under = sal_Unicode('_');
+diff -r 03068afc23c6 i18npool/source/breakiterator/data/char_in.txt
+--- a/i18npool/source/breakiterator/data/char_in.txt	Sun Apr 25 15:43:24 2010 +0100
++++ b/i18npool/source/breakiterator/data/char_in.txt	Mon Apr 26 10:21:41 2010 +0100
+@@ -1,48 +1,108 @@
+ #
+-#   Copyright (C) 2002-2003, International Business Machines Corporation and others.
++#   Copyright (C) 2002-2009, International Business Machines Corporation and others.
+ #       All Rights Reserved.
+ #
+ #   file:  char.txt 
+ #
+ #   ICU Character Break Rules, also known as Grapheme Cluster Boundaries
+ #      See Unicode Standard Annex #29.
+-#      These rules are based on TR29 Version 4.0.0
++#      These rules are based on TR29 Revision 13, for Unicode Version 5.1
+ #
+ 
+ #
+ #  Character Class Definitions.
+-#    The names are those from TR29.
+ #
+-$CR = \r;
+-$LF = \n;
+-$Control    = [[:Zl:] [:Zp:] [:Cc:] [:Cf:]];
+-
+-# add Japanese Half Width voicing marks to $Extend
+-$VoiceMarks = [\uff9e\uff9f];
+-$cmcextend = [ \u0903 \u093e-\u0940 \u0949-\u094C \u09bf-\u09c0 \u09c7-\u09c8 \u09cb-\u09cc \u0bc1-\u0bc2 \u0bc6-\u0bc8 \u0bca-\u0bcc \u0c01-\u0c03 \u0c41-\u0c44];
+-$Extend     = [[:Grapheme_Extend = TRUE:] $VoiceMarks $cmcextend]; 
++$CR          = [\p{Grapheme_Cluster_Break = CR}];
++$LF          = [\p{Grapheme_Cluster_Break = LF}];
++$Control     = [\p{Grapheme_Cluster_Break = Control}];
++$Prepend     = [\p{Grapheme_Cluster_Break = Prepend}];
++$Extend      = [\p{Grapheme_Cluster_Break = Extend}];
++$SpacingMark = [\p{Grapheme_Cluster_Break = SpacingMark}];
++$BengaliLetter = [\u0985-\u09B9 \u09CE \u09DC-\u09E1 \u09F0-\u09F1];
++$BengaliSignVirama = \u09CD;
++$GujaratiLetter = [\u0A85-\u0A8C \u0A8F-\u0A90 \u0A93-\u0AB9 \u0AE0-\u0AE1];
++$GujaratiSignVirama = \u0ACD;
++$DevanagariLetter = [\u0904-\u0939 \u0958-\u0961 \u0972-\u097F];
++$DevanagariSignVirama = \u094D;
++$KannadaLetter = [\u0C85-\u0CB9 \u0CDE-\u0CE1];
++$KannadaSignVirama = \u0CCD;
++$MalayalamLetter = [\u0D05-\u0D39 \u0D60-\u0D61 \u0D7A-\u0D7F];
++$MalayalamSignVirama = \u0D4D;
++$OriyaLetter = [\u0B05-\u0B39 \u0B5C-\u0B61 \u0B71];
++$OriyaSignVirama = \u0B4D;
++$GurmukhiLetter = [\u0A05-\u0A39 \u0A59-\u0A5E];
++$GurmukhiSignVirama = \u0A4D;
++$TamilLetter = [\u0B85-\u0BB9];
++$TamilSignVirama = \u0BCD;
++$TeluguLetter = [\u0C05-\u0C39 \u0C58-\u0C61];
++$TeluguSignVirama = \u0C4D;
+ 
+ #
+ # Korean Syllable Definitions
+ #
+-$L   = [:Hangul_Syllable_Type = L:];
+-$V   = [:Hangul_Syllable_Type = V:];
+-$T   = [:Hangul_Syllable_Type = T:];
++$L       = [\p{Grapheme_Cluster_Break = L}];
++$V       = [\p{Grapheme_Cluster_Break = V}];
++$T       = [\p{Grapheme_Cluster_Break = T}];
+ 
+-$LV  = [:Hangul_Syllable_Type = LV:];
+-$LVT = [:Hangul_Syllable_Type = LVT:];
++$LV      = [\p{Grapheme_Cluster_Break = LV}];
++$LVT     = [\p{Grapheme_Cluster_Break = LVT}];
+ 
+-$HangulSyllable = $L+ | ($L* ($LV? $V+ | $LV | $LVT) $T*) | $T+;
+ 
+-#
+-#  Forward Break Rules
+-#
++## -------------------------------------------------
++!!chain;
++
++!!forward;
++
+ $CR $LF;
+-([^$Control] | $HangulSyllable) $Extend*;
+-.;
+ 
++$BengaliLetter ($BengaliSignVirama $BengaliLetter?)+;
++$GujaratiLetter ($GujaratiSignVirama $GujaratiLetter?)+;
++$DevanagariLetter ($DevanagariSignVirama $DevanagariLetter?)+;
++$KannadaLetter ($KannadaSignVirama $KannadaLetter?)+;
++$MalayalamLetter ($MalayalamSignVirama $MalayalamLetter?)+;
++$OriyaLetter ($OriyaSignVirama $OriyaLetter?)+;
++$GurmukhiLetter ($GurmukhiSignVirama $GurmukhiLetter?)+;
++$TamilLetter ($TamilSignVirama $TamilLetter?)+;
++$TeluguLetter ($TeluguSignVirama $TeluguLetter?)+;
+ 
+-#
+-#  Reverse Rule, back up to the beginning of some preceding grapheme cluster.
+-#
+-! ($Extend | $V | $T )*   ($LF $CR | ($LV | $LVT)?$L* | .);
++$L ($L | $V | $LV | $LVT);
++($LV | $V) ($V | $T);
++($LVT | $T) $T;
++
++[^$Control $CR $LF] $Extend;
++
++[^$Control $CR $LF] $SpacingMark;
++$Prepend [^$Control $CR $LF];
++
++
++## -------------------------------------------------
++
++!!reverse;
++$LF $CR;
++($BengaliLetter? $BengaliSignVirama)+ $BengaliLetter;
++($GujaratiLetter? $GujaratiSignVirama)+ $GujaratiLetter;
++($DevanagariLetter? $DevanagariSignVirama)+ $DevanagariLetter;
++($KannadaLetter? $KannadaSignVirama)+ $KannadaLetter;
++($MalayalamLetter? $MalayalamSignVirama)+ $MalayalamLetter;
++($OriyaLetter? $OriyaSignVirama)+ $OriyaLetter;
++($GurmukhiLetter? $GurmukhiSignVirama)+ $GurmukhiLetter;
++($TamilLetter? $TamilSignVirama)+ $TamilLetter;
++($TeluguLetter? $TeluguSignVirama)+ $TeluguLetter;
++($L | $V | $LV | $LVT) $L;
++($V | $T) ($LV | $V);
++$T ($LVT | $T);
++
++$Extend      [^$Control $CR $LF];
++$SpacingMark [^$Control $CR $LF];
++[^$Control $CR $LF] $Prepend;
++
++
++## -------------------------------------------------
++
++!!safe_reverse;
++
++
++## -------------------------------------------------
++
++!!safe_forward;
++

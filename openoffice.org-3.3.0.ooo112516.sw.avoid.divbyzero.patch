@@ -1,0 +1,14 @@
+diff -ru sw.orig/source/core/text/txttab.cxx sw/source/core/text/txttab.cxx
+--- sw.orig/source/core/text/txttab.cxx	2010-06-18 15:03:06.000000000 +0100
++++ sw/source/core/text/txttab.cxx	2010-06-18 15:30:19.000000000 +0100
+@@ -194,6 +194,10 @@
+             if ( nCount < 0 )
+                 nCount = 0;
+ 
++			//Minimum tab stop width is 1
++			if (nDefTabDist <= 0)
++			    nDefTabDist = 1;
++
+ 			nCount /= nDefTabDist;
+             nNextPos = ( nCount + 1 ) * nDefTabDist ;
+             // --> FME 2004-09-21 #117919 Minimum tab stop width is 1 or 51 twips:

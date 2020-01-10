@@ -1,0 +1,223 @@
+Index: cws/slideshow1/slideshow/source/engine/shapes/viewmediashape.cxx
+===================================================================
+--- slideshow1/slideshow/source/engine/shapes/viewmediashape.cxx	(revision 269948)
++++ slideshow1/slideshow/source/engine/shapes/viewmediashape.cxx	(revision 269949)
+@@ -71,6 +71,7 @@
+ #include "viewmediashape.hxx"
+ #include "mediashape.hxx"
+ #include "tools.hxx"
++#include "unoview.hxx"
+ 
+ using namespace ::com::sun::star;
+ 
+@@ -88,12 +89,19 @@
+ 			mxShape( rxShape ),
+ 			mxPlayer(),
+ 			mxPlayerWindow(),
+-            mxComponentContext( rxContext )
++            mxComponentContext( rxContext ),
++            mbIsSoundEnabled(true)
+         {
+             ENSURE_OR_THROW( mxShape.is(), "ViewMediaShape::ViewMediaShape(): Invalid Shape" );
+             ENSURE_OR_THROW( mpViewLayer, "ViewMediaShape::ViewMediaShape(): Invalid View" );
+             ENSURE_OR_THROW( mpViewLayer->getCanvas(), "ViewMediaShape::ViewMediaShape(): Invalid ViewLayer canvas" );
+             ENSURE_OR_THROW( mxComponentContext.is(), "ViewMediaShape::ViewMediaShape(): Invalid component context" );
++
++            UnoViewSharedPtr pUnoView (::boost::dynamic_pointer_cast<UnoView>(rViewLayer));
++            if (pUnoView)
++            {
++                mbIsSoundEnabled = pUnoView->isSoundEnabled();
++            }
+         }
+ 
+ 		// ---------------------------------------------------------------------
+@@ -352,7 +360,7 @@
+ 					getPropertyValue( bMute,
+                                       rxProps,
+                                       ::rtl::OUString( RTL_CONSTASCII_USTRINGPARAM( "Mute" )));
+-					mxPlayer->setMute( bMute );
++					mxPlayer->setMute( bMute || !mbIsSoundEnabled);
+ 
+ 					sal_Int16 nVolumeDB(0);
+ 					getPropertyValue( nVolumeDB,
+Index: cws/slideshow1/slideshow/source/engine/slideshowimpl.cxx
+===================================================================
+--- slideshow1/slideshow/source/engine/slideshowimpl.cxx	(revision 269948)
++++ slideshow1/slideshow/source/engine/slideshowimpl.cxx	(revision 269949)
+@@ -1451,6 +1451,34 @@
+         return (rProperty.Value >>= mbNoSlideTransitions);
+     }
+     
++    if (rProperty.Name.equalsAsciiL(RTL_CONSTASCII_STRINGPARAM("IsSoundEnabled")))
++    {
++        uno::Sequence<uno::Any> aValues;
++        uno::Reference<presentation::XSlideShowView> xView;
++        sal_Bool bValue;
++        if ((rProperty.Value >>= aValues)
++            && aValues.getLength()==2
++            && (aValues[0] >>= xView)
++            && (aValues[1] >>= bValue))
++        {
++            // Look up the view.
++            for (UnoViewVector::const_iterator
++                     iView (maViewContainer.begin()),
++                     iEnd (maViewContainer.end());
++                 iView!=iEnd;
++                 ++iView)
++            {
++                if (*iView && (*iView)->getUnoView()==xView)
++                {
++                    // Store the flag at the view so that media shapes have
++                    // access to it.
++                    (*iView)->setIsSoundEnabled(bValue);
++                    return true;
++                }
++            }
++        }
++    }
++
+     return false;
+ }
+ 
+Index: cws/slideshow1/slideshow/source/engine/slideview.cxx
+===================================================================
+--- slideshow1/slideshow/source/engine/slideview.cxx	(revision 269948)
++++ slideshow1/slideshow/source/engine/slideview.cxx	(revision 269949)
+@@ -715,6 +715,8 @@
+     // UnoView:
+     virtual void _dispose();
+     virtual uno::Reference<presentation::XSlideShowView> getUnoView()const;
++    virtual void setIsSoundEnabled (const bool bValue);
++    virtual bool isSoundEnabled (void) const;
+ 
+     // XEventListener:
+     virtual void SAL_CALL disposing( lang::EventObject const& evt )
+@@ -755,6 +757,7 @@
+     
+     basegfx::B2DHomMatrix                                     maViewTransform;
+     basegfx::B2DSize                                          maUserSize;
++    bool mbIsSoundEnabled;
+ };
+ 
+ 
+@@ -770,7 +773,8 @@
+     maViewLayers(),
+     maClip(),
+     maViewTransform(),
+-    maUserSize( 1.0, 1.0 ) // default size: one-by-one rectangle 
++    maUserSize( 1.0, 1.0 ), // default size: one-by-one rectangle 
++    mbIsSoundEnabled(true)
+ {
+     // take care not constructing any UNO references to this _inside_
+     // ctor, shift that code to createSlideView()!    
+@@ -1001,6 +1005,16 @@
+     return mxView;
+ }
+ 
++void SlideView::setIsSoundEnabled (const bool bValue)
++{
++    mbIsSoundEnabled = bValue;
++}
++
++bool SlideView::isSoundEnabled (void) const
++{
++    return mbIsSoundEnabled;
++}
++
+ void SlideView::_dispose()
+ {
+     dispose();
+Index: cws/slideshow1/slideshow/source/inc/unoview.hxx
+===================================================================
+--- slideshow1/slideshow/source/inc/unoview.hxx	(revision 269948)
++++ slideshow1/slideshow/source/inc/unoview.hxx	(revision 269949)
+@@ -68,6 +68,16 @@
+                 with a different calling convention under Windows).
+              */
+             virtual void _dispose() = 0;
++
++            /** Return whether the sound play back is enabled.
++            */
++            virtual bool isSoundEnabled (void) const = 0;
++
++            /** Tell the view whether it may play sounds.  Disabling this
++                can be used to prevent different views to play the same
++                sounds at the same time.
++            */
++            virtual void setIsSoundEnabled (const bool bValue) = 0;
+         };
+ 
+         typedef ::boost::shared_ptr< UnoView > 		UnoViewSharedPtr;
+Index: cws/slideshow1/sdext/source/presenter/PresenterSlideShowView.cxx
+===================================================================
+--- slideshow1/sdext/source/presenter/PresenterSlideShowView.cxx	(revision 269950)
++++ slideshow1/sdext/source/presenter/PresenterSlideShowView.cxx	(revision 269951)
+@@ -162,7 +162,17 @@
+     // Add the new slide show view to the slide show.
+     if (mxSlideShow.is() && ! mbIsViewAdded)
+     {
+-        mxSlideShow->addView(this);
++        Reference<presentation::XSlideShowView> xView (this);
++        mxSlideShow->addView(xView);
++        // Prevent embeded sounds being played twice at the same time by
++        // disabling sound for the new slide show view.
++        beans::PropertyValue aProperty;
++        aProperty.Name = A2S("IsSoundEnabled");
++        Sequence<Any> aValues (2);
++        aValues[0] <<= xView;
++        aValues[1] <<= sal_False;
++        aProperty.Value <<= aValues;
++        mxSlideShow->setProperty(aProperty);
+         mbIsViewAdded = true;
+     }
+ 
+Index: cws/slideshow1/slideshow/source/engine/shapes/viewmediashape.hxx
+===================================================================
+--- slideshow1/slideshow/source/engine/shapes/viewmediashape.hxx	(revision 270163)
++++ slideshow1/slideshow/source/engine/shapes/viewmediashape.hxx	(revision 270164)
+@@ -166,6 +166,7 @@
+ 			::com::sun::star::uno::Reference< ::com::sun::star::media::XPlayer >		mxPlayer;
+ 			::com::sun::star::uno::Reference< ::com::sun::star::media::XPlayerWindow >	mxPlayerWindow;
+             ::com::sun::star::uno::Reference< ::com::sun::star::uno::XComponentContext>	mxComponentContext;
++            bool mbIsSoundEnabled;
+ 		};
+ 
+         typedef ::boost::shared_ptr< ViewMediaShape > ViewMediaShapeSharedPtr;
+Index: slideshow1/slideshow/source/engine/eventmultiplexer.cxx
+===================================================================
+--- slideshow1/slideshow/source/engine/eventmultiplexer.cxx	(revision 270942)
++++ cws/slideshow1/slideshow/source/engine/eventmultiplexer.cxx	(revision 270943)
+@@ -448,7 +448,15 @@
+         for( UnoViewVector::const_iterator aIter( mrViewContainer.begin() ),
+                  aEnd( mrViewContainer.end() ); aIter != aEnd; ++aIter ) 
+         {
+-            ((*aIter)->getUnoView().get()->*pViewMethod)( mxListener.get() );
++            uno::Reference<presentation::XSlideShowView> xView ((*aIter)->getUnoView());
++            if (xView.is())
++            {
++                (xView.get()->*pViewMethod)( mxListener.get() );
++            }
++            else
++            {
++                OSL_ASSERT(xView.is());
++            }
+         }
+     }
+ }
+Index: slideshow1/sd/source/ui/dlg/docprev.cxx
+===================================================================
+--- slideshow1/sd/source/ui/dlg/docprev.cxx	(revision 270943)
++++ slideshow1/sd/source/ui/dlg/docprev.cxx	(revision 270944)
+@@ -67,7 +67,11 @@
+ {
+ 	mpObj = pObj;
+ 	mnShowPage = nShowPage;
+-	mxSlideShow.clear();
++    if (mxSlideShow.is())
++    {
++        mxSlideShow->end();
++        mxSlideShow.clear();
++    }
+ 	updateViewSettings();
+ }
+ 

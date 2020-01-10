@@ -1,0 +1,192 @@
+diff -ru vcl.orig/unx/gtk/app/gtkdata.cxx vcl/unx/gtk/app/gtkdata.cxx
+--- vcl.orig/unx/gtk/app/gtkdata.cxx	2010-06-14 19:51:39.500810695 +0100
++++ vcl/unx/gtk/app/gtkdata.cxx	2010-06-15 10:07:16.669799057 +0100
+@@ -217,11 +217,12 @@
+             {
+                 gint nMonitors = gdk_screen_get_n_monitors(pScreen);
+                 m_aXineramaScreens = std::vector<Rectangle>();
++                m_aXineramaScreenIndexMap = std::vector<int>(nMonitors);
+                 for (gint i = 0; i < nMonitors; ++i)
+                 {
+                     GdkRectangle dest;
+                     gdk_screen_get_monitor_geometry(pScreen, i, &dest);
+-                    addXineramaScreenUnique( dest.x, dest.y, dest.width, dest.height );
++                    addXineramaScreenUnique( i, dest.x, dest.y, dest.width, dest.height );
+                 }
+                 m_bXinerama = m_aXineramaScreens.size() > 1;
+                 if( ! m_aFrames.empty() )
+@@ -235,6 +236,35 @@
+     }
+ }
+ 
++extern "C"
++{
++    typedef gint(* screen_get_primary_monitor)(GdkScreen *screen);
++}
++
++int GtkSalDisplay::GetDefaultMonitorNumber() const
++{
++	//fprintf(stderr, "GtkSalDisplay::GetDefaultMonitorNumber\n");
++
++    GdkScreen* pScreen = gdk_display_get_screen( m_pGdkDisplay, m_nDefaultScreen );
++#if GTK_CHECK_VERSION(2,20,0)
++    return m_aXineramaScreenIndexMap[gdk_screen_get_primary_monitor(pScreen)];
++#else
++    static screen_get_primary_monitor sym_gdk_screen_get_primary_monitor =
++        (screen_get_primary_monitor)osl_getAsciiFunctionSymbol( GetSalData()->m_pPlugin, "gdk_screen_get_primary_monitor" );
++    if (sym_gdk_screen_get_primary_monitor)
++        return sym_gdk_screen_get_primary_monitor( pScreen );
++    //gdk_screen_get_primary_monitor unavailable, take the first laptop monitor as the default
++    gint nMonitors = gdk_screen_get_n_monitors(pScreen);
++    for (gint i = 0; i < nMonitors; ++i)
++    {
++        //fprintf(stderr, "name is %s\n", gdk_screen_get_monitor_plug_name(pScreen, i));
++        if (g_ascii_strncasecmp (gdk_screen_get_monitor_plug_name(pScreen, i), "LVDS", 4) == 0)
++            return m_aXineramaScreenIndexMap[i];
++    }
++    return 0;
++#endif
++}
++
+ void GtkSalDisplay::initScreen( int nScreen ) const
+ {
+     if( nScreen < 0 || nScreen >= static_cast<int>(m_aScreens.size()) )
+diff -ru vcl.orig/unx/inc/plugins/gtk/gtkdata.hxx vcl/unx/inc/plugins/gtk/gtkdata.hxx
+--- vcl.orig/unx/inc/plugins/gtk/gtkdata.hxx	2010-06-14 19:51:39.547798667 +0100
++++ vcl/unx/inc/plugins/gtk/gtkdata.hxx	2010-06-14 20:33:22.407799098 +0100
+@@ -76,6 +76,8 @@
+     virtual long Dispatch( XEvent *pEvent );
+     virtual void initScreen( int nScreen ) const;
+ 
++    virtual int GetDefaultMonitorNumber() const;
++
+     static GdkFilterReturn filterGdkEvent( GdkXEvent* sys_event,
+                                            GdkEvent* event,
+                                            gpointer data );
+diff -ru vcl.orig/unx/inc/saldisp.hxx vcl/unx/inc/saldisp.hxx
+--- vcl.orig/unx/inc/saldisp.hxx	2010-06-14 19:51:39.548798785 +0100
++++ vcl/unx/inc/saldisp.hxx	2010-06-15 10:06:53.031798755 +0100
+@@ -389,6 +389,7 @@
+ 
+     bool			m_bXinerama;
+     std::vector< Rectangle > m_aXineramaScreens;
++    std::vector< int > m_aXineramaScreenIndexMap;
+     std::list<SalFrame*> m_aFrames;
+     std::list<SalObject*> m_aSalObjects;
+     
+@@ -404,7 +405,7 @@
+     int             processRandREvent( XEvent* );
+ 
+     void			doDestruct();
+-    void            addXineramaScreenUnique( long i_nX, long i_nY, long i_nWidth, long i_nHeight );
++    void            addXineramaScreenUnique( int i, long i_nX, long i_nY, long i_nWidth, long i_nHeight );
+ public:
+ 	static	SalDisplay	   *GetSalDisplay( Display* display );
+ 	static	BOOL			BestVisual( Display     *pDisp,
+@@ -474,6 +475,7 @@
+ 	XLIB_Window		GetDrawable( int nScreen ) const { return getDataForScreen( nScreen ).m_aRefWindow; }
+ 	Display		   *GetDisplay() const { return pDisp_; }
+ 	int				GetDefaultScreenNumber() const { return m_nDefaultScreen; }
++	virtual int		GetDefaultMonitorNumber() const;
+     const Size&     GetScreenSize( int nScreen ) const { return getDataForScreen( nScreen ).m_aSize; }
+ 	srv_vendor_t	GetServerVendor() const { return meServerVendor; }
+ 	void			SetServerVendor() { meServerVendor = sal_GetServerVendor(pDisp_); }
+diff -ru vcl.orig/unx/source/app/saldisp.cxx vcl/unx/source/app/saldisp.cxx
+--- vcl.orig/unx/source/app/saldisp.cxx	2010-06-14 19:51:39.516798973 +0100
++++ vcl/unx/source/app/saldisp.cxx	2010-06-15 10:12:39.627798619 +0100
+@@ -62,9 +62,7 @@
+ 
+ #ifdef USE_XINERAMA
+ #ifdef USE_XINERAMA_XORG
+-#if defined(X86) || defined(X86_64)
+ #include <X11/extensions/Xinerama.h>
+-#endif
+ #elif defined USE_XINERAMA_XSUN
+ #if defined(SOLARIS) && defined(INTEL) // missing extension header in standard installation
+ #define MAXFRAMEBUFFERS       16
+@@ -2597,7 +2595,7 @@
+              sal::static_int_cast< unsigned int >(GetVisual(m_nDefaultScreen).GetVisualId()) );
+ }
+ 
+-void SalDisplay::addXineramaScreenUnique( long i_nX, long i_nY, long i_nWidth, long i_nHeight )
++void SalDisplay::addXineramaScreenUnique( int i, long i_nX, long i_nY, long i_nWidth, long i_nHeight )
+ {
+     // see if any frame buffers are at the same coordinates
+     // this can happen with weird configuration e.g. on
+@@ -2612,10 +2610,12 @@
+                 m_aXineramaScreens[n].GetHeight() < i_nHeight )
+             {
+                 m_aXineramaScreens[n].SetSize( Size( i_nWidth, i_nHeight ) );
++                m_aXineramaScreenIndexMap[i] = n;
+             }
+             return;
+         }
+     }
++    m_aXineramaScreenIndexMap[i] = m_aXineramaScreens.size();
+     m_aXineramaScreens.push_back( Rectangle( Point( i_nX, i_nY ), Size( i_nWidth, i_nHeight ) ) );
+ }
+ 
+@@ -2641,16 +2641,16 @@
+         if( result > 0 && nFramebuffers > 1 )
+         {
+             m_bXinerama = true;
+-            m_aXineramaScreens = std::vector<Rectangle>( nFramebuffers );
++            m_aXineramaScreens = std::vector<Rectangle>();
++            m_aXineramaScreenIndexMap = std::vector<int>(nFramebuffers);
+             for( int i = 0; i < nFramebuffers; i++ )
+-                addXineramaScreenUnique( pFramebuffers[i].x,
++                addXineramaScreenUnique( i, pFramebuffers[i].x,
+                                          pFramebuffers[i].y,
+                                          pFramebuffers[i].width,
+                                          pFramebuffers[i].height );
+         }
+     }
+ #elif defined(USE_XINERAMA_XORG)
+-#if defined( X86 ) || defined( X86_64 )
+ if( XineramaIsActive( pDisp_ ) )
+ {
+     int nFramebuffers = 1;
+@@ -2660,9 +2660,10 @@
+         if( nFramebuffers > 1 )
+         {
+             m_aXineramaScreens = std::vector<Rectangle>();
++            m_aXineramaScreenIndexMap = std::vector<int>(nFramebuffers);
+             for( int i = 0; i < nFramebuffers; i++ )
+             {
+-                addXineramaScreenUnique( pScreens[i].x_org,
++                addXineramaScreenUnique( i, pScreens[i].x_org,
+                                          pScreens[i].y_org,
+                                          pScreens[i].width,
+                                          pScreens[i].height );
+@@ -2673,7 +2674,6 @@
+     }
+ }
+ #endif
+-#endif
+ #if OSL_DEBUG_LEVEL > 1
+     if( m_bXinerama )
+     {
+@@ -2684,6 +2684,11 @@
+ #endif // USE_XINERAMA
+ }
+ 
++int SalDisplay::GetDefaultMonitorNumber() const
++{
++    return 0;
++}
++
+ void SalDisplay::registerFrame( SalFrame* pFrame )
+ {
+     m_aFrames.push_front( pFrame );
+diff -ru vcl.orig/unx/source/app/salsys.cxx vcl/unx/source/app/salsys.cxx
+--- vcl.orig/unx/source/app/salsys.cxx	2010-06-14 19:51:39.515799413 +0100
++++ vcl/unx/source/app/salsys.cxx	2010-06-14 20:28:14.281799292 +0100
+@@ -74,7 +74,7 @@
+ unsigned int X11SalSystem::GetDefaultDisplayNumber()
+ {
+     SalDisplay* pSalDisp = GetX11SalData()->GetDisplay();
+-    return pSalDisp->GetDefaultScreenNumber();
++    return  pSalDisp->IsXinerama() ? pSalDisp->GetDefaultMonitorNumber() : pSalDisp->GetDefaultScreenNumber();
+ }
+ 
+ Rectangle X11SalSystem::GetDisplayScreenPosSizePixel( unsigned int nScreen )

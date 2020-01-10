@@ -1,0 +1,109 @@
+Action	Condition	Sequence
+s72	S255	I2
+InstallExecuteSequence	Action
+AllocateRegistrySpace	NOT Installed	750
+AppSearch		25
+BindImage		2100
+CCPSearch	CCP_TEST	200
+CostFinalize		500
+CostInitialize		350
+CreateFolders		1850
+CreateShortcuts		2150
+DeleteServices	VersionNT	1000
+DontRemoveProducts	REMOVEOLDPRODUCTS<>"1"	155
+DontRemoveLpEnusProducts	REMOVEOLDPRODUCTS<>"1"	157
+DontRemoveLpptProducts	REMOVEOLDPRODUCTS<>"1"	158
+DontRemoveLpruProducts	REMOVEOLDPRODUCTS<>"1"	159
+DontRemoveLpelProducts	REMOVEOLDPRODUCTS<>"1"	160
+DontRemoveLpnlProducts	REMOVEOLDPRODUCTS<>"1"	161
+DontRemoveLpfrProducts	REMOVEOLDPRODUCTS<>"1"	162
+DontRemoveLpesProducts	REMOVEOLDPRODUCTS<>"1"	163
+DontRemoveLpfiProducts	REMOVEOLDPRODUCTS<>"1"	164
+DontRemoveLphuProducts	REMOVEOLDPRODUCTS<>"1"	165
+DontRemoveLpcaProducts	REMOVEOLDPRODUCTS<>"1"	166
+DontRemoveLpitProducts	REMOVEOLDPRODUCTS<>"1"	167
+DontRemoveLpcsProducts	REMOVEOLDPRODUCTS<>"1"	168
+DontRemoveLpskProducts	REMOVEOLDPRODUCTS<>"1"	169
+DontRemoveLpengbProducts	REMOVEOLDPRODUCTS<>"1"	170
+DontRemoveLpdaProducts	REMOVEOLDPRODUCTS<>"1"	171
+DontRemoveLpsvProducts	REMOVEOLDPRODUCTS<>"1"	172
+DontRemoveLpnoProducts	REMOVEOLDPRODUCTS<>"1"	173
+DontRemoveLpplProducts	REMOVEOLDPRODUCTS<>"1"	174
+DontRemoveLpdeProducts	REMOVEOLDPRODUCTS<>"1"	175
+DontRemoveLpptbrProducts	REMOVEOLDPRODUCTS<>"1"	176
+DontRemoveLpthProducts	REMOVEOLDPRODUCTS<>"1"	177
+DontRemoveLpetProducts	REMOVEOLDPRODUCTS<>"1"	178
+DontRemoveLpjaProducts	REMOVEOLDPRODUCTS<>"1"	179
+DontRemoveLpkoProducts	REMOVEOLDPRODUCTS<>"1"	180
+DontRemoveLpzhcnProducts	REMOVEOLDPRODUCTS<>"1"	181
+DontRemoveLpzhtwProducts	REMOVEOLDPRODUCTS<>"1"	182
+DontRemoveLptrProducts	REMOVEOLDPRODUCTS<>"1"	183
+DontRemoveLphiProducts	REMOVEOLDPRODUCTS<>"1"	184
+DontRemoveLparProducts	REMOVEOLDPRODUCTS<>"1"	185
+DontRemoveLpheProducts	REMOVEOLDPRODUCTS<>"1"	186
+DuplicateFiles		2050
+FileCost		400
+FindRelatedProducts	NOT ISSETUPDRIVEN	100
+InstallFiles		1950
+InstallFinalize		3150
+InstallInitialize		700
+InstallODBC		2600
+InstallServices	VersionNT	2750
+InstallValidate		650
+ISInitAllUsers	VersionNT And NOT Installed And Privileged	525
+IsolateComponents		450
+LaunchConditions		50
+MigrateFeatureStates		600
+MoveFiles		1900
+MsiPublishAssemblies		3025
+MsiUnpublishAssemblies		875
+NewProductFound	NEWPRODUCTS	110
+PatchFiles		2000
+ProcessComponents		800
+PublishComponents		3000
+PublishFeatures		3050
+PublishProduct		3100
+RegisterClassInfo		2200
+RegisterComPlus		2700
+RegisterExtensionInfo		2250
+RegisterFonts		2550
+RegisterMIMEInfo		2350
+RegisterProduct		2950
+RegisterProgIdInfo		2300
+RegisterTypeLibraries		2650
+RegisterUser		2900
+RemoveDuplicateFiles		1700
+RemoveEnvironmentStrings		1650
+RemoveExistingProducts		675
+RemoveFiles		1750
+RemoveFolders		1800
+RemoveIniValues		1550
+RemoveODBC		1200
+RemoveRegistryValues		1300
+RemoveShortcuts		1600
+RunningOffice	OFFICERUNS="1"	135
+RMCCPSearch	Not CCP_SUCCESS And CCP_TEST	250
+SameProductFound	SAMEPRODUCTS	120
+ScheduleReboot	ISSCHEDULEREBOOT	3125
+SelfRegModules		2850
+SelfUnregModules		1100
+SetARPInstallLocation		990
+SetOfficeInstallLocation	Not Installed	575
+SetBasisInstallLocation	Not Installed	576
+SetUreInstallLocation	Not Installed	577
+SetODBCFolders		550
+StartServices	VersionNT	2800
+StopServices	VersionNT	950
+UnpublishComponents		850
+UnpublishFeatures		900
+UnregisterClassInfo		1350
+UnregisterComPlus		1050
+UnregisterExtensionInfo		1400
+UnregisterFonts		1250
+UnregisterMIMEInfo		1500
+UnregisterProgIdInfo		1450
+UnregisterTypeLibraries		1150
+ValidateProductID		300
+WriteEnvironmentStrings		2500
+WriteIniValues		2450
+WriteRegistryValues		2400

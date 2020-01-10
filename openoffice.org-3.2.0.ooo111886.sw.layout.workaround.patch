@@ -1,0 +1,12 @@
+--- sw/source/core/layout/tabfrm.cxx	2010-05-27 20:35:30.000000000 +0100
++++ sw/source/core/layout/tabfrm.cxx	2010-05-27 20:37:04.000000000 +0100
+@@ -1625,7 +1625,8 @@
+ #endif
+                 }
+             }
+-            pCnt->GetUpper()->Calc();
++            if (const SwFrm* pUpper = pCnt->GetUpper())
++                pUpper->Calc();
+         }
+         // <--
+         if( ! bAll && (*fnRect->fnYDiff)((pCnt->Frm().*fnRect->fnGetTop)(), nBottom) > 0 )

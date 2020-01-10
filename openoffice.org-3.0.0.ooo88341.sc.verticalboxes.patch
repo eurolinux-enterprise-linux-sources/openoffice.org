@@ -1,0 +1,102 @@
+Index: source/ui/inc/output.hxx
+===================================================================
+RCS file: /cvs/sc/sc/source/ui/inc/output.hxx,v
+retrieving revision 1.19
+diff -u -r1.19 output.hxx
+--- openoffice.org.orig/sc/source/ui/inc/output.hxx	26 Jun 2007 11:50:45 -0000	1.19
++++ openoffice.org/sc/source/ui/inc/output.hxx	16 Apr 2008 12:05:59 -0000
+@@ -242,6 +242,7 @@
+ 	void	DrawExtraShadow(BOOL bLeft, BOOL bTop, BOOL bRight, BOOL bBottom);
+ 	void	DrawFrame();
+ 
++	bool	UseNormalClip(SCROW nCellY, const SfxItemSet* pCondSet);
+ 					// with logic MapMode set!
+ 	void	DrawEdit(BOOL bPixelToLogic);
+ 
+Index: source/ui/view/output2.cxx
+===================================================================
+RCS file: /cvs/sc/sc/source/ui/view/output2.cxx,v
+retrieving revision 1.54.216.1
+diff -u -r1.54.216.1 output2.cxx
+--- openoffice.org.orig/sc/source/ui/view/output2.cxx	18 Jan 2008 12:02:36 -0000	1.54.216.1
++++ openoffice.org/sc/source/ui/view/output2.cxx	16 Apr 2008 12:19:34 -0000
+@@ -1907,6 +1907,21 @@
+     }
+ }
+ 
++bool ScOutputData::UseNormalClip(SCROW nCellY, const SfxItemSet* pCondSet)
++{
++    bool bNormalClip = false;
++	//	Don't clip for text height when printing rows with optimal height,
++	//	except when font size is from conditional formatting.
++	//!	Allow clipping when vertically merged?
++	if ( eType != OUTTYPE_PRINTER ||
++		( pDoc->GetRowFlags( nCellY, nTab ) & CR_MANUALSIZE ) ||
++		( pCondSet && SFX_ITEM_SET ==
++			pCondSet->GetItemState(ATTR_FONT_HEIGHT, TRUE) ) )
++		bNormalClip = TRUE;
++    return bNormalClip;
++}
++
++
+ void ScOutputData::DrawEdit(BOOL bPixelToLogic)
+ {
+     vcl::PDFExtOutDevData* pPDFData = PTR_CAST( vcl::PDFExtOutDevData, pDev->GetExtOutDevData() );
+@@ -2524,13 +2539,8 @@
+ 											(ScMergeAttr*)&pPattern->GetItem(ATTR_MERGE);
+ 									BOOL bMerged = pMerge->GetColMerge() > 1 || pMerge->GetRowMerge() > 1;
+ 
+-									//	Don't clip for text height when printing rows with optimal height,
+-									//	except when font size is from conditional formatting.
+-									//!	Allow clipping when vertically merged?
+-									if ( eType != OUTTYPE_PRINTER ||
+-										( pDoc->GetRowFlags( nCellY, nTab ) & CR_MANUALSIZE ) ||
+-										( pCondSet && SFX_ITEM_SET ==
+-											pCondSet->GetItemState(ATTR_FONT_HEIGHT, TRUE) ) )
++					
++									if (UseNormalClip(nCellY, pCondSet))
+ 										bClip = TRUE;
+ 									else
+ 										bSimClip = TRUE;
+@@ -2580,6 +2590,18 @@
+ #endif
+ 
+ 								Rectangle aLogicClip;
++                                if (
++										((nAttrRotate == 9000) || (nAttrRotate == 27000)) &&
++										(!(eOrient==SVX_ORIENTATION_STANDARD && !bAsianVertical)) &&
++										(!(bClip || bSimClip))
++								   )
++								{
++									if (UseNormalClip(nCellY, pCondSet))
++										bClip = TRUE;
++									else
++										bSimClip = TRUE;
++								}
++
+ 								if (bClip || bSimClip)
+ 								{
+ 									// Clip marks are already handled in GetOutputArea
+@@ -2635,10 +2657,20 @@
+ 									}
+ 									else
+ 									{
++										long nDiff = 0;
+ 										if (eHorJust==SVX_HOR_JUSTIFY_RIGHT)
+-											aLogicStart.X() += nAvailWidth - nEngineWidth;
++											nDiff = nAvailWidth - nEngineWidth;
+ 										else if (eHorJust==SVX_HOR_JUSTIFY_CENTER)
+-											aLogicStart.X() += (nAvailWidth - nEngineWidth) / 2;
++											nDiff = (nAvailWidth - nEngineWidth) / 2;
++
++										if (nEngineWidth > nAvailWidth)
++										{
++                                            if (nAttrRotate == 9000)
++										        nDiff = 0;
++											else if (nAttrRotate == 27000)
++										        nDiff = nAvailWidth - nEngineWidth;
++										}
++										aLogicStart.X() += nDiff;
+ 									}
+ 								}
+ 

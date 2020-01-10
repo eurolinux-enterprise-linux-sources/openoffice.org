@@ -1,0 +1,46 @@
+syntax: regexp
+
+# source additions:
+^external/unowinreg/unowinreg.dll$
+^moz/download/seamonkey-1\.1\.14\.source\.tar\.bz2$
+
+# configure output:
+^Makefile$
+^\w+Env\.Set(\.sh)?$
+^bootstrap$
+^config\.log$
+^config\.parms$
+^config\.status$
+^makefile\.mk$
+^set_soenv$
+^visibility\.cxx$
+^warn$
+
+# bootstrap output:
+^dmake/(.+/)?Makefile$
+^dmake/(.+/)?\.deps$
+^dmake/.+\.o$
+^dmake/config\.h$
+^dmake/config\.log$
+^dmake/config\.status$
+^dmake/dmake$
+^dmake/dmakeroot\.h$
+^dmake/stamp-h1$
+^dmake/startup/config\.mk$
+^dmake/[^/]+/\.dirstamp$
+
+# build output:
+^[^/]+/common(\.pro)?$
+^[^/]+/unxfbsd(\.pro)?$
+^[^/]+/unxlngi\d+(\.pro)?$
+^[^/]+/unxlngx\d+(\.pro)?$
+^[^/]+/unxmacxi(\.pro)?$
+^[^/]+/unxsoli\d+(\.pro)?$
+^[^/]+/unxsols\d+(\.pro)?$
+^[^/]+/wntmsci\d+(\.pro)?$
+^solver$
+
+# Emacs backups (XXX~, #XXX#, .#XXX):
+^(.*/)?[^/]+~$
+^(.*/)?\#[^/]+\#$
+^(.*/)?\.\#[^/]+$

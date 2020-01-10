@@ -1,0 +1,86 @@
+diff -r aa9d07722b0e shell/source/unix/misc/gnome-open-url.sh
+--- a/shell/source/unix/misc/gnome-open-url.sh	Wed May 26 13:23:31 2010 +0100
++++ b/shell/source/unix/misc/gnome-open-url.sh	Mon May 31 14:10:43 2010 +0100
+@@ -1,6 +1,6 @@
+ #!/bin/sh
+ 
+-# use gnome-open utility coming with libgnome if available
+-gnome-open "$1" 2>/dev/null || "$0.bin" $1
++# use xdg-open or gnome-open if available
++xdg-open "$1" 2>/dev/null || gnome-open "$1" 2>/dev/null || "$0.bin" $1
+ 
+ exit 0
+diff -r aa9d07722b0e shell/source/unix/misc/open-url.sh
+--- a/shell/source/unix/misc/open-url.sh	Wed May 26 13:23:31 2010 +0100
++++ b/shell/source/unix/misc/open-url.sh	Mon May 31 14:10:43 2010 +0100
+@@ -46,38 +46,48 @@
+ 
+ # special handling for mailto: uris
+ if echo $1 | grep '^mailto:' > /dev/null; then
++  # check for xdg-email
++  mailer=`which xdg-email`
++  if [ ! -z "$mailer" ]; then
++    $mailer "$1" &
++    exit 0
++  fi
+   # check $MAILER variable
+   if [ ! -z "$MAILER" ]; then
+     $MAILER "$1" &
+     exit 0
+-  else
+-    # mozilla derivates may need -remote semantics
+-    for i in thunderbird mozilla netscape; do
+-      mailer=`which $i`
+-      if [ ! -z "$mailer" ]; then
+-        run_mozilla "$mailer" "$1"
+-        exit 0
+-      fi
+-    done
+-    # handle all non mozilla mail clients below
+-    # ..
+   fi
++  # mozilla derivates may need -remote semantics
++  for i in thunderbird mozilla netscape; do
++    mailer=`which $i`
++    if [ ! -z "$mailer" ]; then
++      run_mozilla "$mailer" "$1"
++      exit 0
++    fi
++  done
++  # handle all non mozilla mail clients below
++  # ..
+ else
++  # check for xdg-open
++  browser=`which xdg-open`
++  if [ ! -z "$browser" ]; then
++    $browser "$1" &
++    exit 0
++  fi
+   # check $BROWSER variable
+   if [ ! -z "$BROWSER" ]; then
+     $BROWSER "$1" &
+     exit 0
+-  else
+-    # mozilla derivates may need -remote semantics
+-    for i in firefox mozilla netscape; do
+-      browser=`which $i`
+-      if [ ! -z "$browser" ]; then
+-        run_mozilla "$browser" "$1"
+-        exit 0
+-      fi
+-    done
+-    # handle all non mozilla browers below
+-    # ..
+   fi
++  # mozilla derivates may need -remote semantics
++  for i in firefox mozilla netscape; do
++    browser=`which $i`
++    if [ ! -z "$browser" ]; then
++      run_mozilla "$browser" "$1"
++      exit 0
++    fi
++  done
++  # handle all non mozilla browers below
++  # ..
+ fi
+ exit 1

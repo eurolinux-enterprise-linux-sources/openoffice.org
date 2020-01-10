@@ -1,0 +1,154 @@
+/*************************************************************************
+ *
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * Copyright 2000, 2010 Oracle and/or its affiliates.
+ *
+ * OpenOffice.org - a multi-platform office productivity suite
+ *
+ * This file is part of OpenOffice.org.
+ *
+ * OpenOffice.org is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License version 3
+ * only, as published by the Free Software Foundation.
+ *
+ * OpenOffice.org is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License version 3 for more details
+ * (a copy is included in the LICENSE file that accompanied this code).
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * version 3 along with OpenOffice.org.  If not, see
+ * <http://www.openoffice.org/license.html>
+ * for a copy of the LGPLv3 License.
+ *
+ ************************************************************************/
+
+#include "macros.inc"
+
+File gid_File_Lib_Placeware
+    Name = LIBNAME(placeware);
+    PACKED_UNO_LIB_FILE_BODY;
+End
+
+File gid_File_Lib_Animcore
+	Name = SPECIAL_NAME(animcore);
+	PACKED_UNO_LIB_FILE_BODY;
+End
+
+File gid_File_Registry_Spool_Oo_Office_Embedding_Impress_Xcu
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Registry_Modules_Oo_Office_Embedding;
+    Name = "/registry/spool/org/openoffice/Office/Embedding-impress.xcu";
+End
+
+File gid_File_Help_Simpress_Zip
+    Dir = gid_Dir_Help_Isolanguage;
+    TXT_FILE_BODY;
+    Styles = (ARCHIVE,DONT_OVERWRITE);
+    EXTRA_ALL_GOOD_HELP_LOCALIZATIONS_LANG(simpress);
+    Patchfiles = (); 
+End
+
+File gid_File_Exe_Simpress
+    BIN_FILE_BODY;
+    Dir = gid_Brand_Dir_Program;
+    Name = EXENAME(simpress);
+  #ifdef WNT
+    FileDescription = "%PRODUCTNAME Impress";
+    Styles = (PACKED, PATCH_SO_NAME);
+  #else
+    Styles = (PACKED);
+  #endif
+End
+
+// new user interface configuration files
+/*
+File gid_File_Share_Config_Sofficecfg_Impress_Menubar_Xml
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Config_Sofficecfg_Simpress_Menubar;
+    Name = "/uiconfig/simpress/menubar/menubar.xml";
+End
+*/
+
+File gid_File_Registry_Spool_Oo_TypeDetection_Impress_UISort_Xcu
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Registry_Modules_Oo_TypeDetection_UISort;
+    Name = "/registry/spool/org/openoffice/TypeDetection/UISort-impress.xcu";
+End
+
+File gid_File_Registry_Spool_Oo_TypeDetection_Impress_Types_Xcu
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Registry_Modules_Oo_TypeDetection_Types;
+    Name = "/registry/spool/fcfg_impress_types.xcu";
+End
+
+File gid_File_Registry_Spool_Oo_TypeDetection_Impress_Filters_Xcu
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Registry_Modules_Oo_TypeDetection_Filter;
+    Name = "/registry/spool/fcfg_impress_filters.xcu";
+End
+
+File gid_File_Registry_Spool_Oo_Common_Impress_Xcu
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Registry_Modules_Oo_Office_Common;
+    Name = "/registry/spool/org/openoffice/Office/Common-impress.xcu";
+End
+
+File gid_File_Registry_Spool_Oo_Setup_Impress_Xcu
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Registry_Modules_Oo_Setup;
+    Name = "/registry/spool/org/openoffice/Setup-impress.xcu";
+End
+
+File gid_File_Oo_Office_Ui_Impresswindowstate_Xcs
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Registry_Schema_Org_Openoffice_Office_Ui;
+    Name = "/registry/schema/org/openoffice/Office/UI/ImpressWindowState.xcs";
+End
+
+File gid_File_Oo_Office_Ui_Impresswindowstate_Xcu
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Registry_Data_Org_Openoffice_Office_Ui;
+    Name = "/registry/data/org/openoffice/Office/UI/ImpressWindowState.xcu";
+End
+
+// configuration files for custom animation effects
+
+File gid_File_Share_Config_Sofficecfg_Impress_Effects_Xml
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Config_Sofficecfg_Simpress;
+    Name = "effects.xml";
+End
+
+File gid_File_Share_Config_Sofficecfg_Impress_Transitions_Xml
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Config_Sofficecfg_Simpress;
+    Name = "transitions.xml";
+End
+
+File gid_File_Oo_Office_Ui_Effects_Xcs
+    TXT_FILE_BODY;
+    Styles = (PACKED);
+    Dir = gid_Dir_Share_Registry_Schema_Org_Openoffice_Office_Ui;
+    Name = "/registry/schema/org/openoffice/Office/UI/Effects.xcs";
+End
+
+File gid_File_Oo_Office_Ui_Effects_Xcu
+	TXT_FILE_BODY;
+	Styles = (PACKED);
+	Dir = gid_Dir_Share_Registry_Data_Org_Openoffice_Office_Ui;
+	Name = "/registry/data/org/openoffice/Office/UI/Effects.xcu";
+End

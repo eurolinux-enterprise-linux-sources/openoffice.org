@@ -1,0 +1,85 @@
+diff -r 03068afc23c6 sw/source/core/unocore/unosett.cxx
+--- a/sw/source/core/unocore/unosett.cxx	Sun Apr 25 15:43:24 2010 +0100
++++ b/sw/source/core/unocore/unosett.cxx	Tue Apr 27 16:55:25 2010 +0100
+@@ -1659,9 +1659,8 @@
+ 				aPropertyValues.Insert(pData, aPropertyValues.Count());
+ 			}
+ 		 	Size aSize = rFmt.GetGraphicSize();
+-			aSize.Width() = TWIP_TO_MM100( aSize.Width() );
+-			aSize.Height() = TWIP_TO_MM100( aSize.Height() );
+-			pData = new PropValData((void*)&aSize, SW_PROP_NAME_STR(UNO_NAME_GRAPHIC_SIZE), ::getCppuType((const awt::Size*)0));
++		 	awt::Size aAwtSize(TWIP_TO_MM100(aSize.Width()), TWIP_TO_MM100(aSize.Height()));
++			pData = new PropValData((void*)&aAwtSize, SW_PROP_NAME_STR(UNO_NAME_GRAPHIC_SIZE), ::getCppuType((const awt::Size*)0));
+ 			aPropertyValues.Insert(pData, aPropertyValues.Count());
+ 
+ 			const SwFmtVertOrient* pOrient = rFmt.GetGraphicOrientation();
+diff -r 03902c50d924 sw/source/core/txtnode/ndtxt.cxx
+--- a/sw/source/core/txtnode/ndtxt.cxx	Tue May 04 16:15:43 2010 +0200
++++ b/sw/source/core/txtnode/ndtxt.cxx	Wed May 05 10:53:42 2010 +0200
+@@ -1588,6 +1588,7 @@
+ 	// Del-Array fuer alle RefMarks ohne Ausdehnung
+ 	SwpHts aRefMrkArr;
+ 
++    USHORT nDeletedDummyChars(0);
+ 		//Achtung: kann ungueltig sein!!
+     for (USHORT n = 0; ( n < nSize ); ++n)
+     {
+@@ -1681,9 +1682,19 @@
+ 		}
+ 		else
+ 		{
+-            pNewHt = pDest->InsertItem( pHt->GetAttr(), nAttrStt,
+-                                nAttrEnd, nsSetAttrMode::SETATTR_NOTXTATRCHR );
+-            lcl_CopyHint( nWhich, pHt, pNewHt, pOtherDoc, pDest );
++            pNewHt = pDest->InsertItem( pHt->GetAttr(), nAttrStt - nDeletedDummyChars,
++                                nAttrEnd - nDeletedDummyChars, nsSetAttrMode::SETATTR_NOTXTATRCHR );
++            if (pNewHt)
++            {
++                lcl_CopyHint( nWhich, pHt, pNewHt, pOtherDoc, pDest );
++            }
++            else if (pHt->HasDummyChar())
++            {
++                // The attribute that has failed to be copied would insert
++                // dummy char, so positions of the following attributes have
++                // to be shifted by one to compensate for that missing char.
++                ++nDeletedDummyChars;
++            }
+         }
+ 
+ 		if( RES_TXTATR_REFMARK == nWhich && !pEndIdx && !bCopyRefMark )
+diff -u -p -u -r1.57 docnew.cxx
+--- a/sw/source/core/doc/docnew.cxx	8 Nov 2005 17:16:18 -0000	1.57
++++ b/sw/source/core/doc/docnew.cxx	29 Nov 2005 09:38:58 -0000
+@@ -459,6 +459,16 @@
+ 
+ SwDoc::~SwDoc()
+ {
++    if( pExtInputRing )
++    {
++            Ring* pTmp = pExtInputRing;
++            pExtInputRing = 0;
++            while( pTmp->GetNext() != pTmp )
++                    delete pTmp->GetNext();
++            delete pTmp;
++    }
++
++
+     // --> OD 2007-03-16 #i73788#
+     SwPauseThreadStarting aPauseThreadStarting;
+     // <--
+@@ -547,15 +557,6 @@
+     pMarkManager->clearAllMarks();
+ 	DELETEZ( pMacroTable );
+ 
+-	if( pExtInputRing )
+-	{
+-		Ring* pTmp = pExtInputRing;
+-		pExtInputRing = 0;
+-		while( pTmp->GetNext() != pTmp )
+-			delete pTmp->GetNext();
+-		delete pTmp;
+-	}
+-
+ //JP: alt - loeschen ohne Flag ist teuer; Modify wird verschickt!
+ //	aTOXTypes.DeleteAndDestroy( 0, aTOXTypes.Count() );
+ 	{

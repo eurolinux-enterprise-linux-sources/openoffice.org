@@ -1,0 +1,99 @@
+# HG changeset patch
+# Parent 2042f9e3d9493aeef14b1c6ee7f5023b6957e72e
+#i110722# use language in glyph fallback lookup through fontconfig
+
+diff -r 2042f9e3d949 vcl/source/gdi/outdev3.cxx
+--- a/vcl/source/gdi/outdev3.cxx	Wed Apr 14 10:05:00 2010 +0200
++++ b/vcl/source/gdi/outdev3.cxx	Wed Apr 14 10:10:08 2010 +0200
+@@ -579,6 +579,7 @@
+     {
+         aFont.SetHeight( nDefaultHeight );
+         aFont.SetWeight( WEIGHT_NORMAL );
++        aFont.SetLanguage( eLang );
+ 
+ 		if ( aFont.GetCharSet() == RTL_TEXTENCODING_DONTKNOW )
+             aFont.SetCharSet( gsl_getSystemTextEncoding() );
+diff -r 2042f9e3d949 vcl/unx/source/gdi/salgdi3.cxx
+--- a/vcl/unx/source/gdi/salgdi3.cxx	Wed Apr 14 10:05:00 2010 +0200
++++ b/vcl/unx/source/gdi/salgdi3.cxx	Wed Apr 14 10:10:08 2010 +0200
+@@ -2025,7 +2025,7 @@
+ {
+     ImplFontSelectData aRet(rFontSelData);
+ 
+-    const rtl::OString aLangAttrib; //TODO: = MsLangId::convertLanguageToIsoByteString( rFontSelData.meLanguage );
++    const rtl::OString aLangAttrib = MsLangId::convertLanguageToIsoByteString( rFontSelData.meLanguage );
+ 
+     psp::italic::type eItalic = psp::italic::Unknown;
+     if( rFontSelData.GetSlant() != ITALIC_DONTKNOW )
+diff -r 2042f9e3d949 vcl/util/makefile.mk
+--- a/vcl/util/makefile.mk	2010-04-27 20:18:37.000000000 +0100
++++ b/vcl/util/makefile.mk	2010-04-27 20:19:25.000000000 +0100
+@@ -300,6 +300,7 @@
+ 			$(VCLLIB)\
+             $(I18NUTILLIB)      \
+             $(I18NPAPERLIB)     \
++            $(I18NISOLANGLIB)     \
+             $(TOOLSLIB)         \
+             $(VOSLIB)           \
+             $(BASEGFXLIB)	\
+diff -ru vcl/source/gdi/metric.cxx vcl/source/gdi/metric.cxx
+--- a/vcl/source/gdi/metric.cxx	2010-06-12 21:08:54.000000000 +0100
++++ b/vcl/source/gdi/metric.cxx	2010-06-14 09:00:44.000000000 +0100
+@@ -386,13 +388,14 @@
+         const bool bSymbolic = (mpRangeCodes[0]>=0xF000) & (mpRangeCodes[1]<=0xF0FF);
+         if( !bSymbolic )
+             return 0;
+-        // check for symbol aliasing (U+F0xx -> U+00xx)
+-        nRange = ImplFindRangeIndex( cChar | 0xF000 );
++        // check for symbol aliasing (U+00xx <-> U+F0xx)
++        cChar |= 0xF000;
++        nRange = ImplFindRangeIndex( cChar );
+     }
+     // check that we are inside a range
+     if( (nRange & 1) != 0 )
+         return 0;
+-    
++
+     // get glyph index directly or indirectly
+     int nGlyphIndex = cChar - mpRangeCodes[ nRange ];
+     const int nStartIndex = mpStartGlyphs[ nRange/2 ];
+diff -ru vcl/source/glyphs/gcach_ftyp.cxx vcl/source/glyphs/gcach_ftyp.cxx
+--- a/vcl/source/glyphs/gcach_ftyp.cxx	2010-06-12 21:08:54.000000000 +0100
++++ b/vcl/source/glyphs/gcach_ftyp.cxx	2010-06-14 08:59:30.000000000 +0100
+@@ -1203,11 +1203,9 @@
+             // check if symbol aliasing helps
+             if( (aChar <= 0x00FF) && mpFontInfo->IsSymbolFont() )
+                 nGlyphIndex = FT_Get_Char_Index( maFaceFT, aChar | 0xF000 );
+-#if 0 // disabled for now because it introduced ae bad side-effect (#i88376#)
+             // Finally try the postscript name table
+             if (!nGlyphIndex)
+                 nGlyphIndex = psp::PrintFontManager::get().FreeTypeCharIndex( maFaceFT, aChar );
+-#endif
+         }
+         mpFontInfo->CacheGlyphIndex( aChar, nGlyphIndex );
+     }
+diff -ru vcl/unx/source/fontmanager/fontconfig.cxx vcl/unx/source/fontmanager/fontconfig.cxx
+--- a/vcl/unx/source/fontmanager/fontconfig.cxx	2010-06-12 21:09:11.000000000 +0100
++++ b/vcl/unx/source/fontmanager/fontconfig.cxx	2010-06-14 08:59:22.000000000 +0100
+@@ -823,7 +823,20 @@
+ int PrintFontManager::FreeTypeCharIndex( void *pFace, sal_uInt32 aChar )
+ {
+     FontCfgWrapper& rWrapper = FontCfgWrapper::get();
+-    return rWrapper.isValid() ? rWrapper.FcFreeTypeCharIndex( (FT_Face)pFace, aChar ) : 0;
++    int nRet = 0;
++    if (rWrapper.isValid())
++    {
++        FT_Face aFace = (FT_Face)pFace;
++        FT_CharMap hOrig = aFace->charmap;
++        nRet = rWrapper.FcFreeTypeCharIndex( aFace, aChar );
++        if (hOrig != aFace->charmap)
++        {
++	    //#i88376 FcFreeTypeCharIndex may change the Charmap without
++	    //resetting it back to the original
++	    FT_Set_Charmap(aFace, hOrig);
++        }
++    }
++    return nRet;
+ }
+ 
+ bool PrintFontManager::addFontconfigDir( const rtl::OString& rDirName )

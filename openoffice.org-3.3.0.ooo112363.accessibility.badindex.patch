@@ -1,0 +1,22 @@
+diff -ru accessibility/source/extended/textwindowaccessibility.cxx accessibility/source/extended/textwindowaccessibility.cxx
+--- accessibility/source/extended/textwindowaccessibility.cxx	2010-06-14 10:15:09.428805818 +0100
++++ accessibility/source/extended/textwindowaccessibility.cxx	2010-06-14 10:30:38.683798962 +0100
+@@ -1992,10 +1992,14 @@
+                 determineVisibleRange();
+                 notifyVisibleRangeChanges(aOldVisibleBegin, aOldVisibleEnd,
+                                           m_xParagraphs->end());
+-                Paragraphs::iterator aIt(m_xParagraphs->begin() + n);
+-                ::rtl::Reference< ParagraphImpl > xParagraph(getParagraph(aIt));
+-                if (xParagraph.is())
+-                    xParagraph->textChanged();
++
++                if (n < m_xParagraphs->size())
++                {
++                    Paragraphs::iterator aIt(m_xParagraphs->begin() + n);
++                    ::rtl::Reference< ParagraphImpl > xParagraph(getParagraph(aIt));
++                    if (xParagraph.is())
++                        xParagraph->textChanged();
++                }
+                 break;
+             }
+         default:

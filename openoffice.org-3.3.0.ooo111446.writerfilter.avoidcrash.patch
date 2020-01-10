@@ -1,0 +1,37 @@
+diff -ru writerfilter.orig/source/dmapper/DomainMapper.cxx writerfilter/source/dmapper/DomainMapper.cxx
+--- writerfilter.orig/source/dmapper/DomainMapper.cxx	2010-05-07 08:42:15.000000000 +0100
++++ writerfilter/source/dmapper/DomainMapper.cxx	2010-05-07 08:55:34.000000000 +0100
+@@ -4249,6 +4249,8 @@
+ {
+     //handle unprocessed deferred breaks
+     PropertyMapPtr pParaProperties = m_pImpl->GetTopContextOfType(CONTEXT_PARAGRAPH);
++    if (!pParaProperties)
++        return;
+     if( pParaProperties->hasEmptyPropertyValues() )
+     {
+         PropertyMap::const_iterator aIter = pParaProperties->find(PropertyDefinition( PROP_BREAK_TYPE , false ) );
+diff -ru writerfilter.orig/source/dmapper/DomainMapper_Impl.cxx writerfilter/source/dmapper/DomainMapper_Impl.cxx
+--- writerfilter.orig/source/dmapper/DomainMapper_Impl.cxx	2010-05-07 08:42:15.000000000 +0100
++++ writerfilter/source/dmapper/DomainMapper_Impl.cxx	2010-05-07 08:53:32.000000000 +0100
+@@ -846,6 +846,8 @@
+ #endif
+ 
+     ParagraphPropertyMap* pParaContext = dynamic_cast< ParagraphPropertyMap* >( pPropertyMap.get() );
++    if (!pParaContext)
++        return;
+     TextAppendContext& rAppendContext = m_aTextAppendStack.top();
+     uno::Reference< text::XTextAppend >  xTextAppend = rAppendContext.xTextAppend;
+     PropertyNameSupplier& rPropNameSupplier = PropertyNameSupplier::GetPropertyNameSupplier();
+diff -ru writerfilter.orig/source/dmapper/DomainMapperTableManager.cxx writerfilter/source/dmapper/DomainMapperTableManager.cxx
+--- writerfilter.orig/source/dmapper/DomainMapperTableManager.cxx	2010-05-07 08:42:15.000000000 +0100
++++ writerfilter/source/dmapper/DomainMapperTableManager.cxx	2010-05-07 08:57:17.000000000 +0100
+@@ -321,6 +321,9 @@
+ 
+ void DomainMapperTableManager::endLevel( )
+ {
++    if (m_aTableGrid.empty() || m_aGridSpans.empty())
++        return;
++
+     m_aTableGrid.pop_back( );
+     m_aGridSpans.pop_back( );
+     m_nTableWidth = 0;

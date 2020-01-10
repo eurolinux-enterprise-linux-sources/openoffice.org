@@ -1,0 +1,161 @@
+Index: source/filter/html/htmlpars.cxx
+===================================================================
+RCS file: /cvs/sc/sc/source/filter/html/htmlpars.cxx,v
+retrieving revision 1.29
+diff -u -r1.29 htmlpars.cxx
+--- openoffice.org.orig/sc/source/filter/html/htmlpars.cxx	3 Aug 2006 14:54:12 -0000	1.29
++++ openoffice.org/sc/source/filter/html/htmlpars.cxx	24 Apr 2007 09:47:29 -0000
+@@ -157,27 +157,7 @@
+     SfxObjectShell* pObjSh = mpDoc->GetDocumentShell();
+     BOOL bLoading = pObjSh && pObjSh->IsLoading();
+ 
+-    SvKeyValueIteratorRef xValues;
+-    SvKeyValueIterator* pAttributes = NULL;
+-    if ( bLoading )
+-        pAttributes = pObjSh->GetHeaderAttributes();
+-    else
+-    {
+-        //  When not loading, set up fake http headers to force the SfxHTMLParser to use UTF8
+-        //  (used when pasting from clipboard)
+-
+-        const sal_Char* pCharSet = rtl_getBestMimeCharsetFromTextEncoding( RTL_TEXTENCODING_UTF8 );
+-        if( pCharSet )
+-        {
+-            String aContentType = String::CreateFromAscii( "text/html; charset=" );
+-            aContentType.AppendAscii( pCharSet );
+-
+-            xValues = new SvKeyValueIterator;
+-            xValues->Append( SvKeyValue( String::CreateFromAscii( OOO_STRING_SVTOOLS_HTML_META_content_type ), aContentType ) );
+-            pAttributes = xValues;
+-        }
+-    }
+-
++    SvKeyValueIterator* pAttributes = bLoading ? pObjSh->GetHeaderAttributes() : 0;
+     ULONG nErr = pEdit->Read( rStream, rBaseURL, EE_FORMAT_HTML, pAttributes );
+ 
+     pEdit->SetImportHdl( aOldLink );
+@@ -2796,30 +2776,8 @@
+ 
+ ULONG ScHTMLQueryParser::Read( SvStream& rStrm, const String& rBaseURL  )
+ {
+-    SvKeyValueIteratorRef xValues;
+-    SvKeyValueIterator* pAttributes = 0;
+-
+     SfxObjectShell* pObjSh = mpDoc->GetDocumentShell();
+-    if( pObjSh && pObjSh->IsLoading() )
+-    {
+-        pAttributes = pObjSh->GetHeaderAttributes();
+-    }
+-    else
+-    {
+-        /*  When not loading, set up fake HTTP headers to force the SfxHTMLParser
+-            to use UTF8 (used when pasting from clipboard) */
+-        const sal_Char* pCharSet = rtl_getBestMimeCharsetFromTextEncoding( RTL_TEXTENCODING_UTF8 );
+-        if( pCharSet )
+-        {
+-            String aContentType = String::CreateFromAscii( "text/html; charset=" );
+-            aContentType.AppendAscii( pCharSet );
+-
+-            xValues = new SvKeyValueIterator;
+-            xValues->Append( SvKeyValue( String::CreateFromAscii( OOO_STRING_SVTOOLS_HTML_META_content_type ), aContentType ) );
+-            pAttributes = xValues;
+-        }
+-    }
+-
++    SvKeyValueIterator* pAttributes = (pObjSh && pObjSh->IsLoading()) ? pObjSh->GetHeaderAttributes() : 0;
+     Link aOldLink = pEdit->GetImportHdl();
+     pEdit->SetImportHdl( LINK( this, ScHTMLQueryParser, HTMLImportHdl ) );
+     ULONG nErr = pEdit->Read( rStrm, rBaseURL, EE_FORMAT_HTML, pAttributes );
+Index: source/filter/html/swhtml.cxx
+===================================================================
+RCS file: /cvs/sw/sw/source/filter/html/swhtml.cxx,v
+retrieving revision 1.40
+diff -u -r1.40 swhtml.cxx
+--- openoffice.org.orig/sw/source/filter/html/swhtml.cxx	1 Dec 2006 15:54:00 -0000	1.40
++++ openoffice.org/sw/source/filter/html/swhtml.cxx	24 Apr 2007 09:45:06 -0000
+@@ -491,7 +491,7 @@
+ 	bOldIsHTMLMode = pDoc->get(IDocumentSettingAccess::HTML_MODE);
+ 	pDoc->set(IDocumentSettingAccess::HTML_MODE, true);
+ 
+-    pCSS1Parser = new SwCSS1Parser( pDoc, aFontHeights, sBaseURL, IsNewDoc() );
++	pCSS1Parser = new SwCSS1Parser( pDoc, aFontHeights, sBaseURL, IsNewDoc() );
+ 	pCSS1Parser->SetIgnoreFontFamily( pHtmlOptions->IsIgnoreFontFamily() );
+ 
+ 	if( bReadUTF8 )
+@@ -501,10 +501,8 @@
+ 	else
+ 	{
+ 		SwDocShell *pDocSh = pDoc->GetDocShell();
+-		SvKeyValueIterator *pHeaderAttrs =
+-			pDocSh->GetHeaderAttributes();
+-		if( pHeaderAttrs )
+-			SetEncodingByHTTPHeader( pHeaderAttrs );
++		SvKeyValueIterator *pHeaderAttrs = (pDocSh && pDocSh->IsLoading()) ? pDocSh->GetHeaderAttributes() : 0;
++		SetEncodingByHTTPHeader( pHeaderAttrs );
+ 	}
+ 	pCSS1Parser->SetDfltEncoding( gsl_getSystemTextEncoding() );
+ 
+Index: source/bastyp/sfxhtml.cxx
+===================================================================
+RCS file: /cvs/framework/sfx2/source/bastyp/sfxhtml.cxx,v
+retrieving revision 1.17
+diff -u -r1.17 sfxhtml.cxx
+--- openoffice.org.orig/sfx2/source/bastyp/sfxhtml.cxx	17 Sep 2006 16:25:00 -0000	1.17
++++ openoffice.org/sfx2/source/bastyp/sfxhtml.cxx	24 Apr 2007 09:35:50 -0000
+@@ -53,10 +53,11 @@
+ #include <tools/tenccvt.hxx>
+ 
+ #include <sfx2/sfxhtml.hxx>
++#include <sfx2/objsh.hxx>
++#include <sfx2/docfile.hxx>
+ 
+ #include <com/sun/star/beans/XPropertyContainer.hpp>
+ 
+-
+ using namespace ::com::sun::star;
+ 
+ 
+@@ -381,6 +382,26 @@
+ BOOL SfxHTMLParser::SetEncodingByHTTPHeader(
+ 								SvKeyValueIterator *pHTTPHeader )
+ {
++	SvKeyValueIteratorRef xValues;
++    /*  
++	 *  When not loading, set up fake HTTP headers to force the
++	 *  SfxHTMLParser to use UTF8 (used when pasting from clipboard) 
++	 */
++	SfxObjectShell* pObjSh = !pHTTPHeader ? SfxObjectShell::Current() : 0;
++	if( pObjSh && !pObjSh->IsLoading() )
++	{
++		const sal_Char* pCharSet = rtl_getBestMimeCharsetFromTextEncoding( RTL_TEXTENCODING_UTF8 );
++		if( pCharSet )
++		{
++			String aContentType = String::CreateFromAscii( "text/html; charset=" );
++			aContentType.AppendAscii( pCharSet );
++
++			xValues = new SvKeyValueIterator;
++			xValues->Append( SvKeyValue( String::CreateFromAscii( OOO_STRING_SVTOOLS_HTML_META_content_type ), aContentType ) );
++			pHTTPHeader = xValues;
++		}
++	}
++
+ 	BOOL bRet = FALSE;
+     rtl_TextEncoding eEnc = SfxHTMLParser::GetEncodingByHttpHeader( pHTTPHeader );
+     if(RTL_TEXTENCODING_DONTKNOW != eEnc)
+Index: source/editeng/eehtml.cxx
+===================================================================
+RCS file: /cvs/graphics/svx/source/editeng/eehtml.cxx,v
+retrieving revision 1.16
+diff -u -r1.16 eehtml.cxx
+--- openoffice.org.orig/svx/source/editeng/eehtml.cxx	12 Oct 2006 12:37:40 -0000	1.16
++++ openoffice.org/svx/source/editeng/eehtml.cxx	18 May 2007 11:00:09 -0000
+@@ -72,8 +72,7 @@
+ 	nNumberingLevel = 0;
+ 	bFieldsInserted = FALSE;
+ 
+-    if ( pHTTPHeaderAttrs )
+-		SetEncodingByHTTPHeader( pHTTPHeaderAttrs );
++	SetEncodingByHTTPHeader( pHTTPHeaderAttrs );
+ }
+ 
+ EditHTMLParser::~EditHTMLParser()

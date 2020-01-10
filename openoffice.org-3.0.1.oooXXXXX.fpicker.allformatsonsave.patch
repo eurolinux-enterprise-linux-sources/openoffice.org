@@ -1,0 +1,273 @@
+diff -ru svtools.orig/inc/svtools/svtools.hrc svtools/inc/svtools/svtools.hrc
+--- openoffice.org.orig/svtools/inc/svtools/svtools.hrc	2009-01-14 15:52:54.000000000 +0000
++++ openoffice.org/svtools/inc/svtools/svtools.hrc	2009-01-14 15:53:18.000000000 +0000
+@@ -73,6 +73,7 @@
+ #define RID_FILEOPEN_INVALIDFOLDER		(RID_SVTOOLS_START + 34)
+ #define RID_FILEOPEN_NOTEXISTENTFILE	(RID_SVTOOLS_START + 35)
+ #define STR_SVT_NOREMOVABLEDEVICE       (RID_SVTOOLS_START + 36)
++#define STR_SVT_ALLFORMATS				(RID_SVTOOLS_START + 37)
+ 
+ // doc template dialog
+ #define DLG_DOCTEMPLATE					(RID_SVTOOLS_START+50)
+diff -ru fpicker.orig/source/office/iodlg.src fpicker/source/office/iodlg.src
+--- openoffice.org.orig/fpicker/source/office/iodlg.src	2009-01-14 11:56:02.000000000 +0000
++++ openoffice.org/fpicker/source/office/iodlg.src	2009-01-14 15:59:44.000000000 +0000
+@@ -317,5 +312,10 @@
+     Text [ en-US ] = "No removable storage device detected.\nMake sure it is plugged in properly and try again." ;
+ };
+ 
++String STR_SVT_ALLFORMATS
++{
++	Text [ en-US ] = "All Formats" ;
++};
++
+ //******************************************************************** EOF
+ 
+diff -ru fpicker.orig/source/unx/gnome/resourceprovider.cxx fpicker/source/unx/gnome/resourceprovider.cxx
+--- openoffice.org.orig/fpicker/source/unx/gnome/resourceprovider.cxx	2009-01-14 11:56:02.000000000 +0000
++++ openoffice.org/fpicker/source/unx/gnome/resourceprovider.cxx	2009-01-14 15:42:26.000000000 +0000
+@@ -85,7 +85,8 @@
+     { CHECKBOX_SELECTION,                       STR_SVT_FILEPICKER_SELECTION },
+     { FOLDERPICKER_TITLE,                       STR_SVT_FOLDERPICKER_DEFAULT_TITLE },
+     { FOLDER_PICKER_DEF_DESCRIPTION,            STR_SVT_FOLDERPICKER_DEFAULT_DESCRIPTION },
+-    { FILE_PICKER_OVERWRITE,                    STR_SVT_ALREADYEXISTOVERWRITE }
++    { FILE_PICKER_OVERWRITE,                    STR_SVT_ALREADYEXISTOVERWRITE },
++    { FILE_PICKER_ALLFORMATS,                   STR_SVT_ALLFORMATS }
+ };
+ 
+ _Entry OtherCtrlIdToResIdTable[] = {
+diff -ru fpicker.orig/source/unx/gnome/resourceprovider.hxx fpicker/source/unx/gnome/resourceprovider.hxx
+--- openoffice.org.orig/fpicker/source/unx/gnome/resourceprovider.hxx	2009-01-14 11:56:02.000000000 +0000
++++ openoffice.org/fpicker/source/unx/gnome/resourceprovider.hxx	2009-01-14 15:40:34.000000000 +0000
+@@ -48,6 +48,7 @@
+ #define FILE_PICKER_TITLE_SAVE        503
+ #define FILE_PICKER_FILE_TYPE         504
+ #define FILE_PICKER_OVERWRITE         505
++#define FILE_PICKER_ALLFORMATS        506
+ 
+ //------------------------------------------------------------------------
+ // deklarations
+diff -ru fpicker.orig/source/unx/gnome/SalGtkFilePicker.cxx fpicker/source/unx/gnome/SalGtkFilePicker.cxx
+--- openoffice.org.orig/fpicker/source/unx/gnome/SalGtkFilePicker.cxx	2009-01-14 11:56:02.000000000 +0000
++++ openoffice.org/fpicker/source/unx/gnome/SalGtkFilePicker.cxx	2009-01-14 15:42:05.000000000 +0000
+@@ -55,6 +55,7 @@
+ 
+ #include <iostream>
+ #include <algorithm>
++#include <set>
+ #include "resourceprovider.hxx"
+ #ifndef _SV_RC_H
+ #include <tools/rc.hxx>
+@@ -180,6 +181,7 @@
+     mbPreviewState( sal_False ),
+     mHID_Preview( 0 ),
+ 	m_pPreview( NULL ),
++    m_pPseudoFilter( NULL ),
+ 	m_PreviewImageWidth( 256 ),
+     m_PreviewImageHeight( 256 )
+ {
+@@ -689,7 +691,7 @@
+ 		m_pFilterList = new FilterList;
+ 
+ 		// set the first filter to the current filter
+-		if( ( !m_aCurrentFilter ) || ( !m_aCurrentFilter.getLength() ) )
++		if ( !m_aCurrentFilter.getLength() )
+ 			m_aCurrentFilter = _rInitialCurrentFilter;
+ 	}
+ }
+@@ -713,7 +715,6 @@
+ 
+ 	// append the filter
+ 	m_pFilterList->insert( m_pFilterList->end(), FilterEntry( aTitle, aFilter ) );
+-	// implAddFilter( aTitle, aFilter );
+ }
+ 
+ //-----------------------------------------------------------------------------------------
+@@ -778,7 +779,10 @@
+     }
+     else if( GtkFileFilter *filter = gtk_file_chooser_get_filter(GTK_FILE_CHOOSER(m_pDialog)))
+     {
+-        updateCurrentFilterFromName(gtk_file_filter_get_name( filter ));
++		if (m_pPseudoFilter != filter)
++        	updateCurrentFilterFromName(gtk_file_filter_get_name( filter ));
++		else
++        	updateCurrentFilterFromName(OUStringToOString( m_aInitialFilter, RTL_TEXTENCODING_UTF8 ).getStr());
+     }
+ }
+ 
+@@ -945,9 +949,15 @@
+                     }
+                 }
+ 
+-			    const gchar* filtername = 
+-				    gtk_file_filter_get_name( gtk_file_chooser_get_filter( GTK_FILE_CHOOSER( m_pDialog ) ) );
+-                sFilterName = OUString( filtername, strlen( filtername ), RTL_TEXTENCODING_UTF8 );
++				GtkFileFilter *filter = gtk_file_chooser_get_filter(GTK_FILE_CHOOSER(m_pDialog));
++        		if (m_pPseudoFilter != filter)
++				{
++			    	const gchar* filtername = 
++				    	gtk_file_filter_get_name( filter );
++                	sFilterName = OUString( filtername, strlen( filtername ), RTL_TEXTENCODING_UTF8 );
++				}
++				else
++					sFilterName = m_aInitialFilter;
+             }
+ 
+ 			OSL_TRACE( "2: current filter is %s\n", 
+@@ -1904,7 +1914,7 @@
+ }
+ }
+ 
+-int SalGtkFilePicker::implAddFilter( const OUString& rFilter, const OUString& rType )
++GtkFileFilter * SalGtkFilePicker::implAddFilter( const OUString& rFilter, const OUString& rType )
+ {
+ 	GtkFileFilter *filter = gtk_file_filter_new();
+ 
+@@ -1953,7 +1963,6 @@
+ 
+ 	gtk_file_chooser_add_filter( GTK_FILE_CHOOSER( m_pDialog ), filter );
+ 
+-    int nAdded = 0;
+     if (!bAllGlob)
+     {
+         GtkTreeIter iter;
+@@ -1964,27 +1973,66 @@
+             2, aFilterName.getStr(),
+             3, OUStringToOString(rType, RTL_TEXTENCODING_UTF8).getStr(),
+             -1);
+-        nAdded = 1;
+     }
+-    return nAdded;
++
++	return filter;
+ }
+ 
+-int SalGtkFilePicker::implAddFilterGroup( const OUString& /*_rFilter*/, const Sequence< StringPair >& _rFilters )
++void SalGtkFilePicker::implAddFilterGroup( const OUString& /*_rFilter*/, const Sequence< StringPair >& _rFilters )
+ {
+ 	// Gtk+ has no filter group concept I think so ...
+ 	// implAddFilter( _rFilter, String() );
+-    int nAdded = 0;
+ 	const StringPair* pSubFilters	= _rFilters.getConstArray();
+ 	const StringPair* pSubFiltersEnd = pSubFilters + _rFilters.getLength();
+ 	for( ; pSubFilters != pSubFiltersEnd; ++pSubFilters )
+-		nAdded += implAddFilter( pSubFilters->First, pSubFilters->Second );
+-    return nAdded;
++		implAddFilter( pSubFilters->First, pSubFilters->Second );
+ }
+ 
+ void SalGtkFilePicker::SetFilters()
+ {
+-	OSL_TRACE( "start setting filters\n");
+-    int nAdded = 0;
++	if (!m_aInitialFilter.getLength())
++		m_aInitialFilter = m_aCurrentFilter;
++
++	rtl::OUString sPseudoFilter;
++    if( GTK_FILE_CHOOSER_ACTION_SAVE == gtk_file_chooser_get_action( GTK_FILE_CHOOSER( m_pDialog ) ) )
++    {
++		std::set<OUString> aAllFormats;
++		if( m_pFilterList && !m_pFilterList->empty() )
++		{
++			for	(	FilterList::iterator aListIter = m_pFilterList->begin();
++					aListIter != m_pFilterList->end();
++					++aListIter
++				)
++			{
++				if( aListIter->hasSubFilters() )
++				{	// it's a filter group
++					UnoFilterList aSubFilters;
++					aListIter->getSubFilters( aSubFilters );
++					const StringPair* pSubFilters   = aSubFilters.getConstArray();
++					const StringPair* pSubFiltersEnd = pSubFilters + aSubFilters.getLength();
++					for( ; pSubFilters != pSubFiltersEnd; ++pSubFilters )
++						aAllFormats.insert(pSubFilters->Second);
++				}
++				else
++					aAllFormats.insert(aListIter->getFilter());
++			}
++		}
++		if (aAllFormats.size() > 1)
++		{
++			rtl::OUString sAllFilter;
++			std::set<OUString>::const_iterator aEnd = aAllFormats.end();
++			for (std::set<OUString>::const_iterator aIter = aAllFormats.begin(); aIter != aEnd; ++aIter)
++			{
++				if (sAllFilter.getLength())
++					sAllFilter += OUString(sal_Unicode(';'));
++				sAllFilter += *aIter;
++			}
++			CResourceProvider aResProvider;
++			sPseudoFilter = aResProvider.getResString(FILE_PICKER_ALLFORMATS);
++			m_pPseudoFilter = implAddFilter( sPseudoFilter, sAllFilter );
++		}
++    }
++
+ 	if( m_pFilterList && !m_pFilterList->empty() )
+ 	{
+ 		for	(	FilterList::iterator aListIter = m_pFilterList->begin();
+@@ -1998,30 +2046,27 @@
+ 				UnoFilterList aSubFilters;
+ 				aListIter->getSubFilters( aSubFilters );
+ 
+-				nAdded += implAddFilterGroup( aListIter->getTitle(), aSubFilters );
++				implAddFilterGroup( aListIter->getTitle(), aSubFilters );
+ 			}
+ 			else
+ 			{
+ 				// it's a single filter
+ 
+-				nAdded += implAddFilter( aListIter->getTitle(), aListIter->getFilter() );
++				implAddFilter( aListIter->getTitle(), aListIter->getFilter() );
+ 			}
+ 		}
+ 	}
+ 
+-    if (nAdded)
++    if (gtk_tree_model_iter_n_children(GTK_TREE_MODEL(m_pFilterStore), NULL)) //If m_pFilterStore is not empty
+         gtk_widget_show( m_pFilterExpander );
+     else
+         gtk_widget_hide( m_pFilterExpander );
+ 
+ 	// set the default filter
+-	if( m_aCurrentFilter && (m_aCurrentFilter.getLength() > 0) )
+-	{
+-		OSL_TRACE( "Setting current filter to %s\n", 
+-			OUStringToOString( m_aCurrentFilter, RTL_TEXTENCODING_UTF8 ).getStr() );
+-
++	if (sPseudoFilter.getLength())
++		SetCurFilter( sPseudoFilter );
++	else if(m_aCurrentFilter.getLength())
+ 		SetCurFilter( m_aCurrentFilter );
+-	}
+ 
+ 	OSL_TRACE( "end setting filters\n");
+ }
+diff -ru fpicker.orig/source/unx/gnome/SalGtkFilePicker.hxx fpicker/source/unx/gnome/SalGtkFilePicker.hxx
+--- openoffice.org.orig/fpicker/source/unx/gnome/SalGtkFilePicker.hxx	2009-01-14 11:56:02.000000000 +0000
++++ openoffice.org/fpicker/source/unx/gnome/SalGtkFilePicker.hxx	2009-01-14 15:34:41.000000000 +0000
+@@ -317,11 +317,13 @@
+         gulong mnHID_SelectionChange;
+ 
+ 		::rtl::OUString	m_aCurrentFilter;
++		::rtl::OUString	m_aInitialFilter;
+ 
+         bool bVersionWidthUnset;
+         sal_Bool mbPreviewState;
+         gulong mHID_Preview;
+         GtkWidget* m_pPreview;
++		GtkFileFilter* m_pPseudoFilter;
+         sal_Int32 m_PreviewImageWidth;
+         sal_Int32 m_PreviewImageHeight;
+         
+@@ -332,8 +334,8 @@
+         void UpdateFilterfromUI();
+ 
+         void implChangeType( GtkTreeSelection *selection );
+-		int implAddFilter( const OUString& rFilter, const OUString& rType);
+-		int implAddFilterGroup( const OUString& rFilter, 
++		GtkFileFilter * implAddFilter( const OUString& rFilter, const OUString& rType );
++		void implAddFilterGroup( const OUString& rFilter, 
+ 					 const ::com::sun::star::uno::Sequence< ::com::sun::star::beans::StringPair>& _rFilters );
+         void updateCurrentFilterFromName(const gchar* filtername);
+         void unselect_type();

@@ -1,0 +1,53 @@
+--- solenv/bin/modules/installer/globals.pm	2010-05-25 21:01:11.000000000 +0100
++++ solenv/bin/modules/installer/globals.pm	2010-05-27 08:01:11.000000000 +0100
+@@ -404,8 +404,8 @@
+ 	%usedtreeconditions = ();
+ 	%moduledestination = ();
+ 	
+-	$unomaxservices = 1800; # regcomp -c argument length
+-	$javamaxservices = 15;
++	$unomaxservices = 1; # regcomp -c argument length
++	$javamaxservices = 1;
+ 	
+ 	$one_cab_file = 0;
+ 	$fix_number_of_cab_files = 1;
+--- solenv/bin/modules/installer/servicesfile.pm	2010-05-25 21:01:11.000000000 +0100
++++ solenv/bin/modules/installer/servicesfile.pm	2010-06-10 09:07:46.000000000 +0100
+@@ -222,17 +231,31 @@
+ 			if ( $i % $installer::globals::javamaxservices == 0 || $i > $#{$javacomponents} )	# limiting to $installer::globals::maxservices files
+ 			{
+ 				my @regcompoutput = ();
++				my @throwregcompoutput = ();
+ 
+ 				my $systemcall = "$installer::globals::wrapcmd $$regcompfileref -register -br ".fix_cygwin_path($regcomprdb)." -r ".fix_cygwin_path($servicesfile)." -c " . $installer::globals::quote . $filestring . $installer::globals::quote . " -l com.sun.star.loader.Java2 -wop=" . $installer::globals::quote . $javaservicesurlprefix . $installer::globals::quote ." -env:URE_INTERNAL_JAVA_DIR=" . $installer::globals::quote . make_file_url($$ure_internal_java_dir_ref) . $installer::globals::quote . " 2\>\&1 |";
+ 
+-				open (REG, "$systemcall");
+-				while (<REG>) {push(@regcompoutput, $_); }
+-				close (REG);
++				my $returnvalue = 1;
++				my $infoline = "Systemcall: $systemcall\n";
+ 
+-				my $returnvalue = $?;	# $? contains the return value of the systemcall
++				for ( my $j = 0; $j <= 10; $j++) {
++					open (REG, "$systemcall");
++					while (<REG>) {push(@throwregcompoutput, $_); }
++					close (REG);
++	
++					$returnvalue = $?;	# $? contains the return value of the systemcall
+ 
+-				my $infoline = "Systemcall: $systemcall\n";
+-				push( @installer::globals::logfileinfo, $infoline);
++					push( @installer::globals::logfileinfo, $infoline);
++
++					if ($returnvalue == 0) {
++					    last;
++					}
++
++				        $infoline = "RATS: attempt $j: $systemcall\n";
++				        push( @installer::globals::logfileinfo, $infoline);
++				}
++
++    				$regcompoutput = $throwregcompoutput;
+ 
+ 				for ( my $k = 0; $k <= $#regcompoutput; $k++ ) { push( @installer::globals::logfileinfo, "$regcompoutput[$k]"); }
+ 

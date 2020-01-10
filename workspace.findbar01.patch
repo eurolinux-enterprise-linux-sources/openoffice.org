@@ -1,0 +1,36 @@
+diff -r 331c22de59dc -r 7222222b05a3 sd/source/ui/unoidl/DrawController.cxx
+--- a/sd/source/ui/unoidl/DrawController.cxx	Thu Apr 22 18:47:26 2010 +0200
++++ b/sd/source/ui/unoidl/DrawController.cxx	Wed Apr 28 18:45:33 2010 +0800
+@@ -29,6 +29,7 @@
+ #include "precompiled_sd.hxx"
+ 
+ #include "DrawController.hxx"
++#include "DrawDocShell.hxx"
+ 
+ #include "DrawSubController.hxx"
+ #include "sdpage.hxx"
+@@ -54,6 +55,7 @@
+ #include <svx/fmshell.hxx>
+ #include <vos/mutex.hxx>
+ #include <vcl/svapp.hxx>
++#include <boost/shared_ptr.hpp>
+ 
+ using namespace ::std;
+ using ::rtl::OUString;
+@@ -164,6 +166,16 @@
+ 		{
+ 			mbDisposing = true;
+ 
++            boost::shared_ptr<ViewShell> pViewShell = mpBase->GetMainViewShell();
++            if ( pViewShell )
++            {
++                pViewShell->DeactivateCurrentFunction();
++                DrawDocShell* pDocShell = pViewShell->GetDocSh();
++                if ( pDocShell != NULL )
++                    pDocShell->SetDocShellFunction(0);                 
++            }                                                  
++            pViewShell.reset();
++
+             // When the controller has not been detached from its view
+             // shell, i.e. mpViewShell is not NULL, then tell PaneManager
+             // and ViewShellManager to clear the shell stack.

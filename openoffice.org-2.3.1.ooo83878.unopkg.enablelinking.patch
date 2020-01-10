@@ -1,0 +1,349 @@
+Index: com/sun/star/deployment/makefile.mk
+===================================================================
+RCS file: /cvs/api/offapi/com/sun/star/deployment/makefile.mk,v
+retrieving revision 1.15
+diff -u -r1.15 makefile.mk
+--- openoffice.org.orig/offapi/com/sun/star/deployment/makefile.mk	6 Jul 2007 14:32:11 -0000	1.15
++++ openoffice.org/offapi/com/sun/star/deployment/makefile.mk	22 Nov 2007 14:43:47 -0000
+@@ -55,6 +55,7 @@
+ 	    LicenseException.idl                    \
+         VersionException.idl                    \
+ 	    InstallException.idl                    \
++	    LinkException.idl                    \
+ 		UpdateInformationEntry.idl				\
+ 	    XUpdateInformationProvider.idl          \
+ 		UpdateInformationProvider.idl           \
+--- /dev/null	2007-10-09 17:51:18.611015998 +0100
++++ openoffice.org.orig/offapi/com/sun/star/deployment/LinkException.idl	2007-11-22 13:45:04.000000000 +0000
+@@ -0,0 +1,66 @@
++/*************************************************************************
++ *
++ *  OpenOffice.org - a multi-platform office productivity suite
++ *
++ *  $RCSfile$
++ *
++ *  $Revision$
++ *
++ *  last change: $Author$ $Date$
++ *
++ *  The Contents of this file are made available subject to
++ *  the terms of GNU Lesser General Public License Version 2.1.
++ *
++ *
++ *    GNU Lesser General Public License Version 2.1
++ *    =============================================
++ *    Copyright 2006 by Sun Microsystems, Inc.
++ *    901 San Antonio Road, Palo Alto, CA 94303, USA
++ *
++ *    This library is free software; you can redistribute it and/or
++ *    modify it under the terms of the GNU Lesser General Public
++ *    License version 2.1, as published by the Free Software Foundation.
++ *
++ *    This library is distributed in the hope that it will be useful,
++ *    but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ *    Lesser General Public License for more details.
++ *
++ *    You should have received a copy of the GNU Lesser General Public
++ *    License along with this library; if not, write to the Free Software
++ *    Foundation, Inc., 59 Temple Place, Suite 330, Boston,
++ *    MA  02111-1307  USA
++ *
++ ************************************************************************/
++
++#ifndef INCLUDED_COM_SUN_STAR_DEPLOYMENT_LINKEXCEPTION_IDL
++#define INCLUDED_COM_SUN_STAR_DEPLOYMENT_LINKEXCEPTION_IDL
++
++#include "com/sun/star/uno/Exception.idl"
++
++module com { module sun { module star { module deployment {
++
++interface XPackage;
++
++/**
++   describes the fact that deployment unit is  about to be linked.
++
++   <p>This exception is intended to be used with an
++   <type scope="com::sun::star::task">XInteractionHandler</type>.</p>
++
++   @since OOo 2.4
++*/
++exception LinkException: com::sun::star::uno::Exception {
++    /**
++       represents the new deployment unit.
++
++       <p>Must not be <NULL/>.</p>
++    */
++    XPackage New;
++
++
++};
++
++}; }; }; };
++
++#endif
+--- openoffice.org.orig/javaunohelper/com/sun/star/comp/juhtest/SmoketestCommandEnvironment.java	2010-02-11 13:42:37.000000000 +0000
++++ openoffice.org/javaunohelper/com/sun/star/comp/juhtest/SmoketestCommandEnvironment.java	2010-02-22 15:43:34.000000000 +0000
+@@ -35,6 +35,7 @@
+ import com.sun.star.uno.XComponentContext;
+ import com.sun.star.lang.XServiceInfo;
+ import com.sun.star.ucb.XCommandEnvironment;
++import com.sun.star.uno.AnyConverter;
+ 
+ /** This service is for use by the smoketest which checks the installation of
+  * extensions. The service provides the XCommandEnvironment interface, which
+@@ -113,6 +114,15 @@
+ //                 approve = true;
+ //             }
+ 
++        try {
++            Object link_Exception =
++                AnyConverter.toObject(
++                    com.sun.star.deployment.LinkException.class, request);
++            if (link_Exception != null)
++                approve = false;
++        } catch( Exception e ) {
++        }
++
+         com.sun.star.task.XInteractionContinuation[] conts = xRequest.getContinuations();
+         for (int i = 0; i < conts.length; i++)
+         {
+diff -r 03068afc23c6 desktop/source/deployment/manager/dp_manager.cxx
+--- openoffice.org.orig/desktop/source/deployment/manager/dp_manager.cxx	Sun Apr 25 15:43:24 2010 +0100
++++ openoffice.org/desktop/source/deployment/manager/dp_manager.cxx	Fri Apr 30 09:36:02 2010 +0100
+@@ -57,6 +57,7 @@
+ #include "com/sun/star/ucb/NameClash.hpp"
+ #include "com/sun/star/deployment/VersionException.hpp"
+ #include "com/sun/star/deployment/InstallException.hpp"
++#include "com/sun/star/deployment/LinkException.hpp"
+ #include "com/sun/star/task/XInteractionApprove.hpp"
+ #include "com/sun/star/ucb/UnsupportedCommandException.hpp"
+ #include "boost/bind.hpp"
+@@ -514,6 +515,40 @@
+     return mediaType;
+ }
+ 
++oslFileError dp_linkFile( rtl_uString* ustrFileURL, rtl_uString* ustrDestURL )
++{
++    oslFileError eRet = osl_File_E_invalidError;
++#ifdef UNX
++    OSL_ASSERT( ustrFileURL );
++    OSL_ASSERT( ustrDestURL );
++
++    /* convert source url to system path */
++    rtl::OUString aSrc;
++    eRet = osl_getSystemPathFromFileURL( ustrFileURL, &aSrc.pData );
++    if( eRet != osl_File_E_None )
++        return eRet;
++    rtl::OString aSrcPath = rtl::OUStringToOString( aSrc, osl_getThreadTextEncoding() );
++
++    /* convert destination url to system path */
++    rtl::OUString aDest;
++    osl_getSystemPathFromFileURL( ustrDestURL, &aDest.pData );
++    if( eRet != osl_File_E_None )
++        return eRet;
++    rtl::OString aDestPath = rtl::OUStringToOString( aDest, osl_getThreadTextEncoding() );
++
++    rtl::OString sName = aSrcPath;
++    sal_Int32 nEnd = sName.getLength()-1;
++    if (sName.pData->buffer[nEnd] == '/')
++        --nEnd;
++    sal_Int32 nStart = sName.lastIndexOf( '/', nEnd );
++    sName = sName.copy(nStart, nEnd - nStart + 1);
++
++    int nRet = symlink(aSrcPath.getStr(), (aDestPath + sName).getStr());
++    eRet = nRet != 0 ? osl_File_E_invalidError : osl_File_E_None;
++#endif
++    return eRet;
++}
++
+ //______________________________________________________________________________
+ OUString PackageManagerImpl::insertToActivationLayer(
+     OUString const & mediaType, ::ucbhelper::Content const & sourceContent_,
+@@ -571,10 +606,35 @@
+         sourceContent = ::ucbhelper::Content( 
+             buf.makeStringAndClear(), xCmdEnv );
+     }
+-    if (! destFolderContent.transferContent(
+-            sourceContent, ::ucbhelper::InsertOperation_COPY,
+-            title, NameClash::OVERWRITE ))
+-        throw RuntimeException( OUSTR("UCB transferContent() failed!"), 0 );
++
++    bool bLink = false;
++    Any request( (deployment::LinkException()) );
++    bool approve = false, abort = false;
++    interactContinuation( request, task::XInteractionApprove::static_type(),
++        xCmdEnv, &approve, &abort );
++
++    if (!abort && approve)
++        bLink = true;
++
++    if (bLink)
++    {
++        if (
++            (!sourceContent.isFolder()) || 
++            (osl_File_E_None != dp_linkFile(sourceContent.getURL().pData, destFolderContent.getURL().pData))
++           )
++        {
++            throw RuntimeException( OUSTR("dp_linkFile() failed!"), 0 );
++        }
++    }
++    else
++    {
++        if (! destFolderContent.transferContent(
++                sourceContent, ::ucbhelper::InsertOperation_COPY,
++                title, NameClash::OVERWRITE ))
++        {
++            throw RuntimeException( OUSTR("UCB transferContent() failed!"), 0 );
++        }
++    }
+     
+     // write to DB:
+     dbData->temporaryName = tempEntry;
+diff -r 03068afc23c6 desktop/source/pkgchk/unopkg/unopkg_app.cxx
+--- openoffice.org.orig/desktop/source/pkgchk/unopkg/unopkg_app.cxx	Sun Apr 25 15:43:24 2010 +0100
++++ openoffice.org/desktop/source/pkgchk/unopkg/unopkg_app.cxx	Fri Apr 30 09:36:02 2010 +0100
+@@ -82,6 +82,9 @@
+ " -V, --version           version information\n"
+ " -v, --verbose           verbose output to stdout\n"
+ " -f, --force             force overwriting existing extensions\n"
++#ifdef UNX
++" -l, --link              attempt to link to an unpacked extension instead of copying it\n"
++#endif
+ " -s, --suppress-license  prevents showing the license provided that\n"
+ "                         the extension allows it\n"
+ " --log-file <file>       custom log file; default: <cache-dir>/log.txt\n"
+@@ -101,6 +104,7 @@
+     { RTL_CONSTASCII_STRINGPARAM("version"), 'V', false },
+     { RTL_CONSTASCII_STRINGPARAM("verbose"), 'v', false },
+     { RTL_CONSTASCII_STRINGPARAM("force"), 'f', false },
++    { RTL_CONSTASCII_STRINGPARAM("link"), 'l', false },
+     { RTL_CONSTASCII_STRINGPARAM("log-file"), '\0', true },
+     { RTL_CONSTASCII_STRINGPARAM("shared"), '\0', false },
+     { RTL_CONSTASCII_STRINGPARAM("deployment-context"), '\0', true },
+@@ -208,6 +212,7 @@
+     OUString subCommand;
+     bool option_shared = false;
+     bool option_force = false;
++    bool option_link = false;
+     bool option_verbose = false;
+     bool option_bundled = false;
+     bool option_suppressLicense = false;
+@@ -217,11 +222,13 @@
+     OUString deploymentContext;
+     OUString cmdArg;
+     ::std::vector<OUString> cmdPackages;
+-    
++
+     OptionInfo const * info_shared = getOptionInfo(
+         s_option_infos, OUSTR("shared") );
+     OptionInfo const * info_force = getOptionInfo(
+         s_option_infos, OUSTR("force") );
++    OptionInfo const * info_link = getOptionInfo(
++        s_option_infos, OUSTR("link") );
+     OptionInfo const * info_verbose = getOptionInfo(
+         s_option_infos, OUSTR("verbose") );
+     OptionInfo const * info_log = getOptionInfo(
+@@ -279,6 +286,7 @@
+                      !readOption( &option_force, info_force, &nPos ) &&
+                      !readOption( &option_bundled, info_bundled, &nPos ) &&
+                      !readOption( &option_suppressLicense, info_suppressLicense, &nPos ) &&
++                     !readOption( &option_link, info_link, &nPos ) &&
+                      !readArgument( &deploymentContext, info_context, &nPos ) &&
+                      !isBootstrapVariable(&nPos))
+             {
+@@ -350,7 +358,7 @@
+         
+         Reference< ::com::sun::star::ucb::XCommandEnvironment > xCmdEnv(
+             createCmdEnv( xComponentContext, logFile,
+-                          option_force, option_verbose, option_bundled, 
++                          option_force, option_link, option_verbose, option_bundled, 
+                           option_suppressLicense) );
+         
+         if (subcmd_add ||
+diff -r 03068afc23c6 desktop/source/pkgchk/unopkg/unopkg_cmdenv.cxx
+--- openoffice.org.orig/desktop/source/pkgchk/unopkg/unopkg_cmdenv.cxx	Sun Apr 25 15:43:24 2010 +0100
++++ openoffice.org/desktop/source/pkgchk/unopkg/unopkg_cmdenv.cxx	Fri Apr 30 09:36:02 2010 +0100
+@@ -43,6 +43,7 @@
+ #include "com/sun/star/task/XInteractionAbort.hpp"
+ #include "com/sun/star/task/XInteractionApprove.hpp"
+ #include "com/sun/star/deployment/InstallException.hpp"
++#include "com/sun/star/deployment/LinkException.hpp"
+ #include "com/sun/star/container/ElementExistException.hpp"
+ #include "com/sun/star/deployment/LicenseException.hpp"
+ #include "com/sun/star/deployment/VersionException.hpp"
+@@ -84,6 +85,7 @@
+ {
+     sal_Int32 m_logLevel;
+     bool m_option_force_overwrite;
++    bool m_option_link;
+     bool m_option_verbose;
+     bool m_option_bundled;
+     bool m_option_suppressLicense;
+@@ -99,6 +101,7 @@
+         Reference<XComponentContext> const & xComponentContext,
+         OUString const & log_file,
+         bool option_force_overwrite,
++        bool option_link,
+         bool option_verbose,
+         bool option_bundled,
+         bool option_suppressLicense);
+@@ -125,11 +128,13 @@
+     Reference<XComponentContext> const & xComponentContext,
+     OUString const & log_file,
+     bool option_force_overwrite,
++    bool option_link,
+     bool option_verbose,
+     bool option_bundled,
+     bool option_suppressLicense)
+     : m_logLevel(0),
+       m_option_force_overwrite( option_force_overwrite ),
++      m_option_link( option_link ),
+       m_option_verbose( option_verbose ),
+       m_option_bundled( option_bundled),
+       m_option_suppressLicense( option_suppressLicense),
+@@ -246,6 +251,7 @@
+     lang::WrappedTargetException wtExc;
+ 	deployment::LicenseException licExc;
+     deployment::InstallException instExc;
++    deployment::LinkException linkExc;
+     deployment::LicenseIndividualAgreementException licAgreementExc;
+     deployment::PlatformException platExc;
+     deployment::VersionException verExc;
+@@ -303,6 +309,10 @@
+         else
+             printLicense(licExc.Text, approve, abort);
+ 	}
++   	else if (request >>= linkExc)
++	{
++		approve = m_option_link;
++	}
+    	else if (request >>= instExc)
+ 	{
+ 		//Only if the unopgk was started with gui + extension then we user is asked.
+@@ -445,12 +455,13 @@
+     Reference< XComponentContext > const & xContext,
+     OUString const & logFile,
+     bool option_force_overwrite,
++    bool option_link,
+     bool option_verbose,
+     bool option_bundled,
+     bool option_suppressLicense)
+ {
+     return new CommandEnvironmentImpl(
+-        xContext, logFile, option_force_overwrite, option_verbose, option_bundled,
++        xContext, logFile, option_force_overwrite, option_link, option_verbose, option_bundled,
+         option_suppressLicense);
+ }
+ 
+diff -r 03068afc23c6 desktop/source/pkgchk/unopkg/unopkg_shared.h
+--- openoffice.org.orig/desktop/source/pkgchk/unopkg/unopkg_shared.h	Sun Apr 25 15:43:24 2010 +0100
++++ openoffice.org/desktop/source/pkgchk/unopkg/unopkg_shared.h	Fri Apr 30 09:36:02 2010 +0100
+@@ -162,6 +162,7 @@
+     css::uno::Reference<css::uno::XComponentContext> const & xContext,
+     ::rtl::OUString const & logFile,
+     bool option_force_overwrite,
++    bool option_link,
+     bool option_verbose,
+     bool option_bundled,
+     bool option_suppressLicense);

@@ -1,0 +1,75 @@
+diff -ru sw/source/core/txtnode/fntcache.cxx sw/source/core/txtnode/fntcache.cxx
+--- a/sw/source/core/txtnode/fntcache.cxx	2009-12-21 10:33:36.000000000 +0000
++++ b/sw/source/core/txtnode/fntcache.cxx	2009-12-22 13:34:48.000000000 +0000
+@@ -482,6 +482,11 @@
+         pScrFont = pPrtFont;
+ 
+         FontMetric aMet = pPrt->GetFontMetric( );
++        //Don't loose "faked" properties of the logical font that don't truly
++        //exist in the physical font metrics which vcl which fake up for us
++        aMet.SetWeight(pScrFont->GetWeight());
++        aMet.SetItalic(pScrFont->GetItalic());
++
+         bSymbol = RTL_TEXTENCODING_SYMBOL == aMet.GetCharSet();
+ 
+         if ( USHRT_MAX == nGuessedLeading )
+@@ -521,6 +526,11 @@
+ 
+ 				pPrt->SetFont( aFnt2 );
+ 				aMet = pPrt->GetFontMetric( );
++				//Don't loose "faked" properties of the logical font that don't
++				//truly exist in the physical font metrics which vcl which fake
++				//up for us
++				aMet.SetWeight(aFnt2.GetWeight());
++				aMet.SetItalic(aFnt2.GetItalic());
+ 			}
+ 
+             const XubString aStandardStr( sStandardString,
+diff -r 21777680017e unoxml/source/rdf/librdf_repository.cxx
+--- a/unoxml/source/rdf/librdf_repository.cxx	Thu Mar 18 17:15:13 2010 +0000
++++ b/unoxml/source/rdf/librdf_repository.cxx	Thu Apr 01 16:23:56 2010 +0100
+@@ -52,6 +52,7 @@
+ #include <rtl/ustring.hxx>
+ 
+ #include <librdf.h>
++#include <libxslt/security.h>
+ 
+ #include <boost/utility.hpp>
+ #include <boost/shared_ptr.hpp>
+@@ -1887,7 +1888,11 @@
+             m_rRep);
+     }
+     //FIXME logger, digest, features?
++    xsltSecurityPrefsPtr origprefs = xsltGetDefaultSecurityPrefs();
+     librdf_world_open(pWorld);
++    xsltSecurityPrefsPtr newprefs = xsltGetDefaultSecurityPrefs();
++    if (newprefs != origprefs)
++        xsltSetDefaultSecurityPrefs(origprefs);
+     return pWorld;
+ }
+ 
+diff -r 21777680017e unoxml/source/rdf/makefile.mk
+--- a/unoxml/source/rdf/makefile.mk	Thu Mar 18 17:15:13 2010 +0000
++++ b/unoxml/source/rdf/makefile.mk	Thu Apr 01 16:23:56 2010 +0100
+@@ -41,6 +41,13 @@
+ CFLAGS+=-DSYSTEM_REDLAND $(REDLAND_CFLAGS)
+ .ENDIF
+ 
++.IF "$(SYSTEM_LIBXSLT)" == "YES"
++CFLAGS+= $(LIBXSLT_CFLAGS)
++.ELSE
++LIBXSLTINCDIR=external$/libxslt
++CFLAGS+= -I$(SOLARINCDIR)$/$(LIBXSLTINCDIR)
++.ENDIF
++
+ # --- Files --------------------------------------------------------
+ .IF "$(L10N_framework)"==""
+ 
+@@ -64,6 +71,7 @@
+ 
+ SHL1STDLIBS= \
+     $(REDLANDLIB) \
++    $(XSLTLIB) \
+ 	$(CPPUHELPERLIB) \
+ 	$(CPPULIB)	\
+ 	$(SALLIB) \

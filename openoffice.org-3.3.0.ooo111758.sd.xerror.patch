@@ -1,0 +1,21 @@
+diff -ru sd.orig/source/ui/slideshow/slideshow.cxx sd/source/ui/slideshow/slideshow.cxx
+--- sd.orig/source/ui/slideshow/slideshow.cxx	2010-05-21 15:44:15.000000000 +0100
++++ sd/source/ui/slideshow/slideshow.cxx	2010-05-21 15:45:57.000000000 +0100
+@@ -699,6 +699,8 @@
+ 		ViewShellBase* pFullScreenViewShellBase = mpFullScreenViewShellBase;
+ 		mpFullScreenViewShellBase = 0;
+ 
++		xController->dispose();
++
+ 		if( pFullScreenViewShellBase )
+ 		{
+ 			PresentationViewShell* pShell = dynamic_cast<PresentationViewShell*>(pFullScreenViewShellBase->GetMainViewShell().get());
+@@ -713,8 +715,6 @@
+ 			}
+ 		}
+ 
+-		xController->dispose();
+-
+ 		if( pFullScreenViewShellBase )
+ 		{
+ 			PresentationViewShell* pShell = NULL;

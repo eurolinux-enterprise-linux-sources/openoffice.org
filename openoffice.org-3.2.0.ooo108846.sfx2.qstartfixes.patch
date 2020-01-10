@@ -1,0 +1,87 @@
+diff -r 3c24aa9a7810 desktop/source/app/cmdlineargs.cxx
+--- a/desktop/source/app/cmdlineargs.cxx	Sat Jan 23 16:31:03 2010 +0000
++++ b/desktop/source/app/cmdlineargs.cxx	Tue Feb 02 13:59:39 2010 +0000
+@@ -387,7 +387,7 @@
+ 	}
+ 	else if ( aArg.equalsAsciiL( RTL_CONSTASCII_STRINGPARAM( "-quickstart" )) == sal_True )
+ 	{
+-#if defined(WNT) || defined(OS2) || defined(QUARTZ)
++#if defined(ENABLE_QUICKSTART_APPLET)
+ 		SetBoolParam_Impl( CMD_BOOLPARAM_QUICKSTART, sal_True );
+ #endif
+ 		return sal_True;
+diff -r 3c24aa9a7810 desktop/source/app/makefile.mk
+--- a/desktop/source/app/makefile.mk	Sat Jan 23 16:31:03 2010 +0000
++++ b/desktop/source/app/makefile.mk	Tue Feb 02 13:59:39 2010 +0000
+@@ -44,6 +44,10 @@
+ CFLAGS+=-DGNOME_VFS_ENABLED
+ .ENDIF
+ 
++.IF "$(GUI)"=="WNT" || "$(GUI)"=="OS2" || "$(GUIBASE)"=="aqua" || "$(ENABLE_SYSTRAY_GTK)"=="TRUE"
++CFLAGS+=-DENABLE_QUICKSTART_APPLET
++.ENDIF
++
+ SHL1TARGET = sofficeapp
+ SHL1OBJS = \
+     $(SLO)$/app.obj \
+diff -r 3c24aa9a7810 sfx2/source/appl/shutdownicon.cxx
+--- a/sfx2/source/appl/shutdownicon.cxx	Sat Jan 23 16:31:03 2010 +0000
++++ b/sfx2/source/appl/shutdownicon.cxx	Tue Feb 02 13:59:39 2010 +0000
+@@ -555,8 +555,8 @@
+         return;
+         
+     // always remove ourselves as listener
++    pInst->m_bListenForTermination = true;
+     xDesktop->removeTerminateListener( pInst );
+-    pInst->m_bListenForTermination = true;
+ 
+     // terminate desktop only if no tasks exist
+     Reference< XFramesSupplier > xSupplier( xDesktop, UNO_QUERY );
+diff -r 3c24aa9a7810 sfx2/source/appl/shutdowniconunx.cxx
+--- a/sfx2/source/appl/shutdowniconunx.cxx	Sat Jan 23 16:31:03 2010 +0000
++++ b/sfx2/source/appl/shutdowniconunx.cxx	Tue Feb 02 13:59:39 2010 +0000
+@@ -39,6 +39,7 @@
+ static EggTrayIcon *pTrayIcon;
+ static GtkWidget *pExitMenuItem = NULL;
+ static GtkWidget *pOpenMenuItem = NULL;
++static GtkWidget *pDisableMenuItem = NULL;
+ 
+ static void open_url_cb( GtkWidget *, gpointer data )
+ {
+@@ -67,8 +68,10 @@
+ static void exit_quickstarter_cb( GtkWidget * )
+ {
+ 	egg_tray_icon_cancel_message (pTrayIcon, 1 );
+-	ShutdownIcon::getInstance()->terminateDesktop();
+ 	plugin_shutdown_sys_tray();
++	//terminate may cause this .so to be unloaded. So we must be hands off
++	//all calls into this .so after this call
++	ShutdownIcon::terminateDesktop();
+ }
+ 
+ static void menu_deactivate_cb( GtkWidget *pMenu )
+@@ -265,7 +268,7 @@
+ 	pMenuItem = gtk_separator_menu_item_new();
+ 	gtk_menu_shell_append( pMenuShell, pMenuItem );
+ 
+-	(void) add_image_menu_item
++	pDisableMenuItem = add_image_menu_item
+         ( pMenuShell, GTK_STOCK_CLOSE,
+ 		  pShutdownIcon->GetResString( STR_QUICKSTART_PRELAUNCH_UNX ),
+ 		  G_CALLBACK( systray_disable_cb ) );
+@@ -289,6 +292,7 @@
+ 	bool bModal = ShutdownIcon::bModalMode;
+ 	gtk_widget_set_sensitive( pExitMenuItem, !bModal);
+ 	gtk_widget_set_sensitive( pOpenMenuItem, !bModal);
++	gtk_widget_set_sensitive( pDisableMenuItem, !bModal);
+ }
+ 
+ extern "C" {
+@@ -404,6 +409,7 @@
+ 	pTrayIcon = NULL;
+ 	pExitMenuItem = NULL;
+ 	pOpenMenuItem = NULL;
++	pDisableMenuItem = NULL;
+ }
+ 
+ #endif // ENABLE_QUICKSTART_APPLET

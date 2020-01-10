@@ -1,0 +1,185 @@
+diff -ru vcl.orig/inc/vcl/salgdi.hxx vcl/inc/vcl/salgdi.hxx
+--- vcl.orig/inc/vcl/salgdi.hxx	2010-06-08 16:16:51.000000000 +0100
++++ vcl/inc/vcl/salgdi.hxx	2010-06-09 11:54:03.000000000 +0100
+@@ -233,7 +233,7 @@
+     // release the fonts
+     void                   ReleaseFonts() { SetFont( NULL, 0 ); }
+     // get the current font's metrics
+-    virtual void			GetFontMetric( ImplFontMetricData* ) = 0;
++    virtual void			GetFontMetric( ImplFontMetricData*, int nFallbackLevel = 0 ) = 0;
+ 
+     // get kernign pairs of the current font
+     // return only PairCount if (pKernPairs == NULL)
+diff -ru vcl.orig/source/gdi/outdev3.cxx vcl/source/gdi/outdev3.cxx
+--- vcl.orig/source/gdi/outdev3.cxx	2010-06-08 16:16:37.000000000 +0100
++++ vcl/source/gdi/outdev3.cxx	2010-06-09 12:41:11.000000000 +0100
+@@ -6588,6 +6588,10 @@
+     rtl::OUString aMissingCodes = aMissingCodeBuf.makeStringAndClear();
+ 
+     ImplFontSelectData aFontSelData = mpFontEntry->maFontSelData;
++
++    ImplFontMetricData aOrigMetric(aFontSelData);
++    mpGraphics->GetFontMetric(&aOrigMetric);
++
+     // when device specific font substitution may have been performed for
+     // the originally selected font then make sure that a fallback to that
+     // font is performed first
+@@ -6632,7 +6636,23 @@
+         }
+ #endif
+ 
++        ImplFontMetricData aSubstituteMetric(aFontSelData);
+         pFallbackFont->mnSetFontFlags = mpGraphics->SetFont( &aFontSelData, nFallbackLevel );
++        mpGraphics->GetFontMetric(&aSubstituteMetric, nFallbackLevel);
++
++        long nOriginalHeight = aOrigMetric.mnAscent + aOrigMetric.mnDescent;
++        long nSubstituteHeight = aSubstituteMetric.mnAscent + aSubstituteMetric.mnDescent;
++        //Too tall, shrink it a bit. Need a better calculation to include extra
++        //factors and any extra wriggle room we might have available ?
++        if (nSubstituteHeight > nOriginalHeight)
++        {
++            float fScale = nOriginalHeight/(float)nSubstituteHeight;
++	    long nOrigHeight = aFontSelData.mnHeight;
++	    aFontSelData.mnHeight *= fScale;
++            ImplFontMetricData aSubstituteMetric(aFontSelData);
++            pFallbackFont->mnSetFontFlags = mpGraphics->SetFont( &aFontSelData, nFallbackLevel );
++	    aFontSelData.mnHeight = nOrigHeight;
++        }
+ 
+         // create and add glyph fallback layout to multilayout
+         rLayoutArgs.ResetPos();
+diff -ru vcl.orig/unx/headless/svpgdi.hxx vcl/unx/headless/svpgdi.hxx
+--- vcl.orig/unx/headless/svpgdi.hxx	2010-06-08 16:16:51.000000000 +0100
++++ vcl/unx/headless/svpgdi.hxx	2010-06-09 11:56:34.000000000 +0100
+@@ -86,7 +86,7 @@
+ 
+     virtual void			SetTextColor( SalColor nSalColor );
+     virtual USHORT         SetFont( ImplFontSelectData*, int nFallbackLevel );
+-    virtual void			GetFontMetric( ImplFontMetricData* );
++    virtual void			GetFontMetric( ImplFontMetricData*, int nFallbackLevel );
+     virtual ULONG			GetKernPairs( ULONG nPairs, ImplKernPairData* pKernPairs );
+     virtual ImplFontCharMap* GetImplFontCharMap() const;
+     virtual void			GetDevFontList( ImplDevFontList* );
+diff -ru vcl.orig/unx/headless/svppspgraphics.cxx vcl/unx/headless/svppspgraphics.cxx
+--- vcl.orig/unx/headless/svppspgraphics.cxx	2010-06-08 16:16:51.000000000 +0100
++++ vcl/unx/headless/svppspgraphics.cxx	2010-06-09 12:01:06.000000000 +0100
+@@ -792,7 +792,7 @@
+     }
+ }
+ 
+-void PspGraphics::GetFontMetric( ImplFontMetricData *pMetric )
++void PspGraphics::GetFontMetric( ImplFontMetricData *pMetric, int )
+ {
+     const psp::PrintFontManager& rMgr = psp::PrintFontManager::get();
+     psp::PrintFontInfo aInfo;
+diff -ru vcl.orig/unx/headless/svppspgraphics.hxx vcl/unx/headless/svppspgraphics.hxx
+--- vcl.orig/unx/headless/svppspgraphics.hxx	2010-06-08 16:16:51.000000000 +0100
++++ vcl/unx/headless/svppspgraphics.hxx	2010-06-09 11:57:47.000000000 +0100
+@@ -105,7 +105,7 @@
+ 
+     virtual void			SetTextColor( SalColor nSalColor );
+     virtual USHORT          SetFont( ImplFontSelectData*, int nFallbackLevel );
+-    virtual void			GetFontMetric( ImplFontMetricData* );
++    virtual void			GetFontMetric( ImplFontMetricData*, int nFallbackLevel );
+     virtual ULONG			GetKernPairs( ULONG nPairs, ImplKernPairData* pKernPairs );
+     virtual ImplFontCharMap* GetImplFontCharMap() const;
+     virtual void			GetDevFontList( ImplDevFontList* );
+diff -ru vcl.orig/unx/headless/svptext.cxx vcl/unx/headless/svptext.cxx
+--- vcl.orig/unx/headless/svptext.cxx	2010-06-08 16:16:51.000000000 +0100
++++ vcl/unx/headless/svptext.cxx	2010-06-09 11:57:29.000000000 +0100
+@@ -240,12 +240,15 @@
+ 
+ // ---------------------------------------------------------------------------
+ 
+-void SvpSalGraphics::GetFontMetric( ImplFontMetricData* pMetric )
++void SvpSalGraphics::GetFontMetric( ImplFontMetricData* pMetric, int nFallbackLevel )
+ {
+-    if( m_pServerFont[0] != NULL )
++    if( nFallbackLevel >= MAX_FALLBACK )
++        return;
++
++    if( m_pServerFont[nFallbackLevel] != NULL )
+     {
+         long rDummyFactor;
+-        m_pServerFont[0]->FetchFontMetric( *pMetric, rDummyFactor );
++        m_pServerFont[nFallbackLevel]->FetchFontMetric( *pMetric, rDummyFactor );
+     }
+ }
+ 
+diff -ru vcl.orig/unx/inc/pspgraphics.h vcl/unx/inc/pspgraphics.h
+--- vcl.orig/unx/inc/pspgraphics.h	2010-06-08 16:16:51.000000000 +0100
++++ vcl/unx/inc/pspgraphics.h	2010-06-09 11:55:52.000000000 +0100
+@@ -102,7 +102,7 @@
+ 
+     virtual void			SetTextColor( SalColor nSalColor );
+     virtual USHORT          SetFont( ImplFontSelectData*, int nFallbackLevel );
+-    virtual void			GetFontMetric( ImplFontMetricData* );
++    virtual void			GetFontMetric( ImplFontMetricData*, int nFallbackLevel );
+     virtual ULONG			GetKernPairs( ULONG nMaxPairs, ImplKernPairData* );
+     virtual ImplFontCharMap* GetImplFontCharMap() const;
+     virtual void			GetDevFontList( ImplDevFontList* );
+diff -ru vcl.orig/unx/inc/salgdi.h vcl/unx/inc/salgdi.h
+--- vcl.orig/unx/inc/salgdi.h	2010-06-08 16:16:51.000000000 +0100
++++ vcl/unx/inc/salgdi.h	2010-06-09 11:55:46.000000000 +0100
+@@ -249,7 +249,7 @@
+ 
+     virtual void			SetTextColor( SalColor nSalColor );
+     virtual USHORT			SetFont( ImplFontSelectData*, int nFallbackLevel );
+-    virtual void			GetFontMetric( ImplFontMetricData* );
++    virtual void			GetFontMetric( ImplFontMetricData*, int nFallbackLevel );
+     virtual ULONG			GetKernPairs( ULONG nMaxPairs, ImplKernPairData* );
+     virtual ImplFontCharMap* GetImplFontCharMap() const;
+     virtual void			GetDevFontList( ImplDevFontList* );
+diff -ru vcl.orig/unx/source/gdi/pspgraphics.cxx vcl/unx/source/gdi/pspgraphics.cxx
+--- vcl.orig/unx/source/gdi/pspgraphics.cxx	2010-06-08 16:16:51.000000000 +0100
++++ vcl/unx/source/gdi/pspgraphics.cxx	2010-06-09 12:02:18.000000000 +0100
+@@ -885,7 +885,7 @@
+     }
+ }
+ 
+-void PspGraphics::GetFontMetric( ImplFontMetricData *pMetric )
++void PspGraphics::GetFontMetric( ImplFontMetricData *pMetric, int )
+ {
+     const psp::PrintFontManager& rMgr = psp::PrintFontManager::get();
+     psp::PrintFontInfo aInfo;
+diff -ru vcl.orig/unx/source/gdi/salgdi3.cxx vcl/unx/source/gdi/salgdi3.cxx
+--- vcl.orig/unx/source/gdi/salgdi3.cxx	2010-06-08 16:16:51.000000000 +0100
++++ vcl/unx/source/gdi/salgdi3.cxx	2010-06-09 11:52:55.000000000 +0100
+@@ -1747,16 +1747,19 @@
+ // ----------------------------------------------------------------------------
+ 
+ void
+-X11SalGraphics::GetFontMetric( ImplFontMetricData *pMetric )
++X11SalGraphics::GetFontMetric( ImplFontMetricData *pMetric, int nFallbackLevel )
+ {
+-    if( mpServerFont[0] != NULL )
++    if( nFallbackLevel >= MAX_FALLBACK )
++        return;
++
++    if( mpServerFont[nFallbackLevel] != NULL )
+     {
+         long rDummyFactor;
+-        mpServerFont[0]->FetchFontMetric( *pMetric, rDummyFactor );
++        mpServerFont[nFallbackLevel]->FetchFontMetric( *pMetric, rDummyFactor );
+     }
+-    else if( mXFont[0] != NULL )
++    else if( mXFont[nFallbackLevel] != NULL )
+     {
+-        mXFont[0]->ToImplFontMetricData( pMetric );
++        mXFont[nFallbackLevel]->ToImplFontMetricData( pMetric );
+         if ( bFontVertical_ )
+             pMetric->mnOrientation = 0;
+     }
+diff -ru vcl.orig/source/glyphs/gcach_ftyp.cxx vcl/source/glyphs/gcach_ftyp.cxx
+--- vcl.orig/source/glyphs/gcach_ftyp.cxx	2010-06-21 09:44:48.000000000 +0100
++++ vcl/source/glyphs/gcach_ftyp.cxx	2010-06-21 10:45:25.000000000 +0100
+@@ -892,6 +909,9 @@
+        }
+     }
+ #endif
++
++    if( mnPrioEmbedded <= 0 )
++        mnLoadFlags |= FT_LOAD_NO_BITMAP;
+ }
+ 
+ // -----------------------------------------------------------------------

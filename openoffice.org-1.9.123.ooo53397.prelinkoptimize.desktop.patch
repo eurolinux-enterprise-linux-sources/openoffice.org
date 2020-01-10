@@ -1,0 +1,111 @@
+diff -r a92d0bd6747b desktop/prj/build.lst
+--- a/desktop/prj/build.lst	Mon Dec 28 16:11:17 2009 +0100
++++ b/desktop/prj/build.lst	Wed Dec 30 09:34:10 2009 +0100
+@@ -1,4 +1,4 @@
+-dt      desktop :       l10n sfx2 stoc uui BERKELEYDB:berkeleydb sysui SO:sysui_so BOOST:boost svx xmlhelp sal unoil officecfg NULL
++dt      desktop :       l10n sfx2 stoc uui BERKELEYDB:berkeleydb sysui SO:sysui_so BOOST:boost svx xmlhelp sal unoil officecfg sc sd sw NULL
+ dt	desktop									usr1	-	all	dt_mkout NULL
+ dt	desktop\inc								nmake	-	all	dt_inc NULL
+ dt	desktop\prj								get		-	all	dt_prj NULL
+diff -r a92d0bd6747b desktop/scripts/soffice.sh
+--- a/desktop/scripts/soffice.sh	Mon Dec 28 16:11:17 2009 +0100
++++ b/desktop/scripts/soffice.sh	Wed Dec 30 09:34:10 2009 +0100
+@@ -73,30 +73,26 @@
+   esac
+ done
+ 
+-# pagein
+-sd_pagein_args=@pagein-common
+ for sd_arg in "$@"; do
+     case ${sd_arg} in
+     -calc)
+-        sd_pagein_args="${sd_pagein_args} @pagein-calc"
++        sd_binary="scalc.bin"
+         break;
+         ;;
+     -draw)
+-        sd_pagein_args="${sd_pagein_args} @pagein-draw"
++        sd_binary="sdraw.bin"
+         break;
+         ;;
+     -impress)
+-        sd_pagein_args="${sd_pagein_args} @pagein-impress"
++        sd_binary="simpress.bin"
+         break;
+         ;;
+     -writer)
+-        sd_pagein_args="${sd_pagein_args} @pagein-writer"
++        sd_binary="swriter.bin"
+         break;
+         ;;
+     esac
+ done
+-"$sd_prog/../basis-link/program/pagein" -L"$sd_prog/../basis-link/program" \
+-    ${sd_pagein_args}
+ 
+ # extend the ld_library_path for java: javaldx checks the sofficerc for us
+ if [ -x "$sd_prog/../basis-link/ure-link/bin/javaldx" ] ; then
+diff -r a92d0bd6747b desktop/util/makefile.mk
+--- a/desktop/util/makefile.mk	Mon Dec 28 16:11:17 2009 +0100
++++ b/desktop/util/makefile.mk	Wed Dec 30 09:34:10 2009 +0100
+@@ -192,6 +192,60 @@
+ APP5DEPN= $(APP1TARGETN) $(APP5RES) ooverinfo.rc
+ APP5DEF=    $(MISCX)$/$(TARGET).def
+ 
++.IF "$(OS)" == "LINUX"
++PRELINKLIBS=$(APP5STDLIBS)
++PRELINKLIBS+= \
++    $(SVXLIB) \
++    $(SVXCORELIB) \
++    $(XMLOFFLIB) \
++    -lfwl$(DLLPOSTFIX) \
++    -lpackage2 \
++    -lucpfile1 \
++    -lucb1 \
++    $(STORELIB) \
++    $(REGLIB) \
++    -lvclplug_gtk$(DLLPOSTFIX) \
++    -lvclplug_gen$(DLLPOSTFIX) \
++    $(LNGLIB) \
++    $(ICUINLIB)
++
++APP6TARGET=swriter
++APP6NOSAL=TRUE
++APP6RPATH=BRAND
++APP6OBJS=$(APP5OBJS)
++APP6STDLIBS=$(PRELINKLIBS) \
++    $(ISWLIB)
++APP6DEPN=$(APP5DEPN)
++APP6DEF=$(MISCX)$/$(TARGET).def
++
++APP7TARGET=scalc
++APP7NOSAL=TRUE
++APP7RPATH=BRAND
++APP7OBJS=$(APP5OBJS)
++APP7STDLIBS=$(PRELINKLIBS) \
++    $(ISCLIB)
++APP7DEPN=$(APP5DEPN)
++APP7DEF=$(MISCX)$/$(TARGET).def
++
++APP8TARGET=sdraw
++APP8NOSAL=TRUE
++APP8RPATH=BRAND
++APP8OBJS=$(APP5OBJS)
++APP8STDLIBS=$(PRELINKLIBS) \
++    $(ISDLIB)
++APP8DEPN=$(APP5DEPN)
++APP8DEF=$(MISCX)$/$(TARGET).def
++
++APP9TARGET=simpress
++APP9NOSAL=TRUE
++APP9RPATH=BRAND
++APP9OBJS=$(APP5OBJS)
++APP9STDLIBS=$(PRELINKLIBS) \
++    $(ISDLIB)
++APP9DEPN=$(APP5DEPN)
++APP9DEF=$(MISCX)$/$(TARGET).def
++.ENDIF
++
+ .IF "$(GUI)" == "WNT"
+ APP5RES=    $(RES)$/oodesktop.res
+ APP5ICON=$(SOLARRESDIR)$/icons/ooo3_main_app.ico

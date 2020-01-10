@@ -1,0 +1,53 @@
+Index: bin/modules/installer/scriptitems.pm
+===================================================================
+RCS file: /cvs/tools/solenv/bin/modules/installer/scriptitems.pm,v
+retrieving revision 1.17
+diff -u -p -r1.17 scriptitems.pm
+--- openoffice.org.orig/solenv/bin/modules/installer/scriptitems.pm	24 Feb 2005 16:21:15 -0000	1.17
++++ openoffice.org/solenv/bin/modules/installer/scriptitems.pm	18 Mar 2005 22:39:42 -0000
+@@ -1077,7 +1077,7 @@
+ 			}
+ 			else
+ 			{
+-				$infoline = "ERROR: Source for $$searchfilenameref not found!\n";	 # Important message in log file				
++				$infoline = "WARNING: Source for $$searchfilenameref not found!\n";	 # Important message in log file				
+ 			}
+ 
+ 			push( @installer::globals::logfileinfo, $infoline);
+@@ -1155,7 +1155,7 @@
+ 			}
+ 			else
+ 			{
+-				$infoline = "ERROR: Source for $$searchfilenameref not found!\n";	 # Important message in log file				
++				$infoline = "WARNING: Source for $$searchfilenameref not found!\n";	 # Important message in log file				
+ 			}
+ 
+ 			push( @installer::globals::logfileinfo, $infoline);
+@@ -1371,11 +1371,10 @@
+ 
+ 				if ( ! $installer::globals::languagepack )
+ 				{
+-					$infoline = "ERROR: Removing file $filename from file list.\n";
++					$infoline = "WARNING: Removing file $filename from file list.\n";
+ 					push( @installer::globals::logfileinfo, $infoline);
+ 
+-					push(@missingfiles, "ERROR: File not found: $filename\n");	
+-					$error_occured = 1;
++					push(@missingfiles, "WARNING: File not found: $filename\n");	
+ 
+ 					next;	# removing this file from list, if sourcepath is empty
+ 				}
+@@ -1383,11 +1382,10 @@
+ 				{
+ 					if (( $onefile->{'ismultilingual'} ) || ( $styles =~ /\bFORCELANGUAGEPACK\b/ ))
+ 					{
+-						$infoline = "ERROR: Removing file $filename from file list.\n";
++						$infoline = "WARNING: Removing file $filename from file list.\n";
+ 						push( @installer::globals::logfileinfo, $infoline);
+ 
+-						push(@missingfiles, "ERROR: File not found: $filename\n");	
+-						$error_occured = 1;
++						push(@missingfiles, "WARNING: File not found: $filename\n");	
+ 
+ 						next;	# removing this file from list, if sourcepath is empty		
+ 					}

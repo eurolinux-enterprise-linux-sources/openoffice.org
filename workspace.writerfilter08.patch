@@ -1,0 +1,38 @@
+diff -ru writerfilter.orig/source/ooxml/OOXMLFactory.cxx writerfilter/source/ooxml/OOXMLFactory.cxx
+--- writerfilter.orig/source/ooxml/OOXMLFactory.cxx	2010-06-02 09:46:43.000000000 +0100
++++ writerfilter/source/ooxml/OOXMLFactory.cxx	2010-06-02 10:51:26.000000000 +0100
+@@ -262,8 +264,14 @@
+     Id nDefine = pHandler->getDefine();
+     
+     OOXMLFactory_ns::Pointer_t pFactory = getFactoryForNamespace(nDefine);
+-    
+-    return createFastChildContextFromFactory(pHandler, pFactory, Element);
++
++    uno::Reference< xml::sax::XFastContextHandler> ret;
++
++    //Avoid handling unknown tokens and recursing to death
++    if ((Element & 0xffff) < OOXML_FAST_TOKENS_END)
++        ret = createFastChildContextFromFactory(pHandler, pFactory, Element);
++
++    return ret;
+ }
+ 
+ void OOXMLFactory::characters(OOXMLFastContextHandler * pHandler,
+diff -ru writerfilter.orig/source/ooxml/OOXMLFastContextHandler.cxx writerfilter/source/ooxml/OOXMLFastContextHandler.cxx
+--- writerfilter.orig/source/ooxml/OOXMLFastContextHandler.cxx	2010-06-02 09:46:43.000000000 +0100
++++ writerfilter/source/ooxml/OOXMLFastContextHandler.cxx	2010-06-02 10:11:28.000000000 +0100
+@@ -152,12 +154,13 @@
+ (OOXMLFastContextHandler * pContext)
+ : cppu::WeakImplHelper1<com::sun::star::xml::sax::XFastContextHandler>(),
+   mpParent(pContext),
++  mId(0),
++  mnDefine(0),
+   mnToken(OOXML_FAST_TOKENS_END),
+   mpStream(NULL),
+   mnTableDepth(0),
+   mnInstanceNumber(mnInstanceCount),
+   mnRefCount(0),
+-  m_xContext(pContext->m_xContext),
+   mbFallback(false)
+ {
+     if (pContext != NULL)

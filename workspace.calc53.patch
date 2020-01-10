@@ -1,0 +1,178 @@
+diff -ru sc.orig/source/ui/app/inputhdl.cxx sc/source/ui/app/inputhdl.cxx
+--- sc.orig/source/ui/app/inputhdl.cxx	2010-02-05 15:10:03.000000000 +0000
++++ sc/source/ui/app/inputhdl.cxx	2010-02-05 20:49:17.000000000 +0000
+@@ -419,7 +421,9 @@
+ 		pColumnData( NULL ),
+ 		pFormulaData( NULL ),
+         pFormulaDataPara( NULL ),
++        pTipVisibleParent( NULL ),
+ 		nTipVisible( 0 ),
++        pTipVisibleSecParent( NULL ),
+         nTipVisibleSec( 0 ),
+ 		nAutoPos( SCPOS_INVALID ),
+ 		bUseTab( FALSE ),
+@@ -681,12 +687,29 @@
+ 	}
+ }
+ 
++IMPL_LINK( ScInputHandler, ShowHideTipVisibleParentListener, VclWindowEvent*, pEvent )
++{
++    if( pEvent->GetId() == VCLEVENT_OBJECT_DYING || pEvent->GetId() == VCLEVENT_WINDOW_HIDE )
++	HideTip();
++    return 0;
++}
++
++IMPL_LINK( ScInputHandler, ShowHideTipVisibleSecParentListener, VclWindowEvent*, pEvent )
++{
++    if( pEvent->GetId() == VCLEVENT_OBJECT_DYING || pEvent->GetId() == VCLEVENT_WINDOW_HIDE )
++	HideTipBelow();
++    return 0;
++}
++
+ void ScInputHandler::HideTip()
+ {
+ 	if ( nTipVisible )
+ 	{
++		if (pTipVisibleParent)
++			pTipVisibleParent->RemoveEventListener( LINK( this, ScInputHandler, ShowHideTipVisibleParentListener ) );
+ 		Help::HideTip( nTipVisible );
+ 		nTipVisible = 0;
++		pTipVisibleParent = NULL;
+ 	}
+ 	aManualTip.Erase();
+ }
+@@ -694,6 +717,8 @@
+ {
+     if ( nTipVisibleSec )
+     {
++		if (pTipVisibleSecParent)
++			pTipVisibleSecParent->RemoveEventListener( LINK( this, ScInputHandler, ShowHideTipVisibleSecParentListener ) );
+         Help::HideTip( nTipVisibleSec );
+         nTipVisibleSec = 0;
+     }
+@@ -887,15 +912,16 @@
+ 	if (pActiveView)
+ 	{
+ 		Point aPos;
+-		Window* pWin = pActiveView->GetWindow();
++		pTipVisibleParent = pActiveView->GetWindow();
+ 		Cursor* pCur = pActiveView->GetCursor();
+ 		if (pCur)
+-			aPos = pWin->LogicToPixel( pCur->GetPos() );
+-		aPos = pWin->OutputToScreenPixel( aPos );
++			aPos = pTipVisibleParent->LogicToPixel( pCur->GetPos() );
++		aPos = pTipVisibleParent->OutputToScreenPixel( aPos );
+ 		Rectangle aRect( aPos, aPos );
+ 
+ 		USHORT nAlign = QUICKHELP_LEFT|QUICKHELP_BOTTOM;
+-		nTipVisible = Help::ShowTip(pWin, aRect, rText, nAlign);
++		nTipVisible = Help::ShowTip(pTipVisibleParent, aRect, rText, nAlign);
++		pTipVisibleParent->AddEventListener( LINK( this, ScInputHandler, ShowHideTipVisibleParentListener ) );
+ 	}
+ }
+ 
+@@ -907,18 +933,19 @@
+     if ( pActiveView )
+     {
+         Point aPos;
+-        Window* pWin = pActiveView->GetWindow();
++        pTipVisibleSecParent = pActiveView->GetWindow();
+         Cursor* pCur = pActiveView->GetCursor();
+         if ( pCur )
+         {
+             Point aLogicPos = pCur->GetPos();
+             aLogicPos.Y() += pCur->GetHeight();
+-            aPos = pWin->LogicToPixel( aLogicPos );
++            aPos = pTipVisibleSecParent->LogicToPixel( aLogicPos );
+         }
+-        aPos = pWin->OutputToScreenPixel( aPos );
++        aPos = pTipVisibleSecParent->OutputToScreenPixel( aPos );
+         Rectangle aRect( aPos, aPos );
+         USHORT nAlign = QUICKHELP_LEFT | QUICKHELP_TOP;
+-        nTipVisibleSec = Help::ShowTip(pWin, aRect, rText, nAlign);
++        nTipVisibleSec = Help::ShowTip(pTipVisibleSecParent, aRect, rText, nAlign);
++        pTipVisibleSecParent->AddEventListener( LINK( this, ScInputHandler, ShowHideTipVisibleSecParentListener ) );
+     }
+ }
+ 
+diff -ru sc.orig/source/ui/inc/inputhdl.hxx sc/source/ui/inc/inputhdl.hxx
+--- sc.orig/source/ui/inc/inputhdl.hxx	2010-02-05 15:10:03.000000000 +0000
++++ sc/source/ui/inc/inputhdl.hxx	2010-02-05 20:33:39.000000000 +0000
+@@ -71,7 +71,9 @@
+ 	TypedScStrCollection*		pColumnData;
+ 	TypedScStrCollection*		pFormulaData;
+     TypedScStrCollection*		pFormulaDataPara;
++	Window*					pTipVisibleParent;
+ 	ULONG					nTipVisible;
++	Window*					pTipVisibleSecParent;
+     ULONG                   nTipVisibleSec;
+ 	String					aManualTip;
+ 	String					aAutoSearch;
+@@ -152,6 +154,8 @@
+ 	BOOL			CursorAtClosingPar();
+ 	void			SkipClosingPar();
+ 	DECL_LINK( ModifyHdl, void* );
++	DECL_LINK( ShowHideTipVisibleParentListener, VclWindowEvent* );
++	DECL_LINK( ShowHideTipVisibleSecParentListener, VclWindowEvent* );
+ #endif
+ 
+ public:
+diff -ru filter.orig/source/config/cache/typedetection.cxx filter/source/config/cache/typedetection.cxx
+--- filter.orig/source/config/cache/typedetection.cxx	2010-01-14 16:09:44.000000000 +0000
++++ filter/source/config/cache/typedetection.cxx	2010-01-14 16:10:31.000000000 +0000
+@@ -609,6 +609,36 @@
+         return sal_False;
+ }
+ 
++namespace
++{
++    bool CSVAtStart(const rtl::OUString &rLHS, const rtl::OUString &rRHS)
++    {
++        sal_Int32 nCompare = rLHS.compareTo(rRHS);
++        if (nCompare != 0)
++        {
++            if (rRHS.equalsAscii("Text - txt - csv (StarCalc)"))
++                return false;
++            else if (rLHS.equalsAscii("Text - txt - csv (StarCalc)"))
++                return true;
++        }
++        return nCompare < 0;
++    }
++
++    bool TextFormatDetectorAtEnd(const rtl::OUString &rLHS, const rtl::OUString &rRHS)
++    {
++        sal_Int32 nCompare = rLHS.compareTo(rRHS);
++        if (nCompare != 0)
++        {
++            if (rRHS.equalsAscii("com.sun.star.text.FormatDetector"))
++                return true;
++            else if (rLHS.equalsAscii("com.sun.star.text.FormatDetector"))
++                return false;
++        }
++        return nCompare < 0;
++    }
++
++}
++
+ /*-----------------------------------------------
+     14.11.2003 12:11
+ -----------------------------------------------*/
+@@ -632,6 +662,9 @@
+         lIProps[PROPNAME_DOCUMENTSERVICE] <<= sPreSelDocumentService;
+         lFilters = m_rCache->getMatchingItemsByProps(FilterCache::E_FILTER, lIProps);
+ 
++        //#i96362#, place Filters into some deterministic order, ideally with CSV at the start
++        std::sort(lFilters.begin(), lFilters.end(), CSVAtStart);
++
+         aLock.clear();
+         // <- SAFE --------------------------
+     }
+@@ -864,6 +897,8 @@
+     // SAFE -> ----------------------------------
+     ::osl::ResettableMutexGuard aLock(m_aLock);
+     OUStringList lDetectors = m_rCache->getItemNames(FilterCache::E_DETECTSERVICE);
++    //#i96362#, place Detectors into some deterministic order, ideally with Writer's detect at the end
++    std::sort(lDetectors.begin(), lDetectors.end(), TextFormatDetectorAtEnd);
+     aLock.clear();
+     // <- SAFE ----------------------------------
+ 

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<helpdocument version="1.0">
+	
+<!--
+***********************************************************************
+ *
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * Copyright 2000, 2010 Oracle and/or its affiliates.
+ *
+ * OpenOffice.org - a multi-platform office productivity suite
+ *
+ * This file is part of OpenOffice.org.
+ *
+ * OpenOffice.org is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License version 3
+ * only, as published by the Free Software Foundation.
+ *
+ * OpenOffice.org is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License version 3 for more details
+ * (a copy is included in the LICENSE file that accompanied this code).
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * version 3 along with OpenOffice.org.  If not, see
+ * <http://www.openoffice.org/license.html>
+ * for a copy of the LGPLv3 License.
+ *
+ ************************************************************************
+ -->
+ 
+	
+<meta>
+<topic id="textshared0106040400xml" indexer="include">
+<title id="tit" xml-lang="en-US">Custom Quotes</title>
+<filename>/text/shared/01/06040400.xhp</filename>
+</topic>
+</meta>
+<body>
+<section id="typanf">
+<bookmark xml-lang="en-US" branch="index" id="bm_id3153899"><bookmark_value>quotes; custom</bookmark_value>
+<bookmark_value>custom quotes</bookmark_value>
+<bookmark_value>AutoCorrect function; quotes</bookmark_value>
+</bookmark>
+<paragraph role="heading" id="hd_id3153899" xml-lang="en-US" level="1" l10n="U" oldref="15"><link href="text/shared/01/06040400.xhp" name="Custom Quotes">Custom Quotes</link></paragraph>
+<paragraph role="paragraph" id="par_id3149748" xml-lang="en-US" l10n="U" oldref="16">Specify the AutoCorrect options for quotation marks in your document.</paragraph>
+</section>
+<section id="howtoget">
+<embed href="text/shared/00/00000406.xhp#autokotyafz"/>
+</section>
+<paragraph role="heading" id="hd_id3154682" xml-lang="en-US" level="2" l10n="U" oldref="17">Single quotes / Double quotes</paragraph>
+<paragraph role="paragraph" id="par_id3152363" xml-lang="en-US" l10n="U" oldref="18">Specify the replacement characters to use for single or double quotation marks.</paragraph>
+<bookmark xml-lang="en-US" branch="hid/OFFMGR:CHECKBOX:RID_OFAPAGE_AUTOCORR_QUOTE:CB_SGL_TYPO" id="bm_id3150902" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/OFFMGR:CHECKBOX:RID_OFAPAGE_AUTOCORR_QUOTE:CB_TYPO" id="bm_id3159194" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/svx_Checkbox_RID_OFAPAGE_AUTOCORR_QUOTE_CB_SGL_TYPO" id="bm_id5906552" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/svx_CheckBox_RID_OFAPAGE_AUTOCORR_QUOTE_CB_TYPO" id="bm_id4584795" localize="false"/>
+<paragraph role="heading" id="hd_id3156553" xml-lang="en-US" level="3" l10n="U" oldref="22">Replace</paragraph>
+<paragraph role="paragraph" id="par_id3155616" xml-lang="en-US" l10n="U" oldref="23"><ahelp hid="OFFMGR:CHECKBOX:RID_OFAPAGE_AUTOCORR_QUOTE:CB_TYPO">Automatically replaces the default system symbol for single quotation marks with the special character that you specify.</ahelp></paragraph>
+<bookmark xml-lang="en-US" branch="hid/OFFMGR:PUSHBUTTON:RID_OFAPAGE_AUTOCORR_QUOTE:PB_STARTQUOTE" id="bm_id3147250" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/OFFMGR:PUSHBUTTON:RID_OFAPAGE_AUTOCORR_QUOTE:PB_SGL_STARTQUOTE" id="bm_id3147043" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/svx_PushButton_RID_OFAPAGE_AUTOCORR_QUOTE_PB_SGL_STARTQUOTE" id="bm_id6259651" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/svx_PushButton_RID_OFAPAGE_AUTOCORR_QUOTE_PB_STARTQUOTE" id="bm_id7007354" localize="false"/>
+<paragraph role="heading" id="hd_id3153750" xml-lang="en-US" level="3" l10n="U" oldref="11">Start quote</paragraph>
+<paragraph role="paragraph" id="par_id3152425" xml-lang="en-US" l10n="U" oldref="12"><ahelp hid="OFFMGR:PUSHBUTTON:RID_OFAPAGE_AUTOCORR_QUOTE:PB_SGL_STARTQUOTE">Select the <link href="text/shared/01/04100000.xhp" name="special character">special character</link> that will automatically replace the current opening quotation mark in your document when you choose <emph>Format - AutoCorrect - Apply</emph>.</ahelp></paragraph>
+<bookmark xml-lang="en-US" branch="hid/OFFMGR:PUSHBUTTON:RID_OFAPAGE_AUTOCORR_QUOTE:PB_ENDQUOTE" id="bm_id3147576" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/OFFMGR:PUSHBUTTON:RID_OFAPAGE_AUTOCORR_QUOTE:PB_SGL_ENDQUOTE" id="bm_id3155942" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/svx_PushButton_RID_OFAPAGE_AUTOCORR_QUOTE_PB_SGL_ENDQUOTE" id="bm_id6449476" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/svx_PushButton_RID_OFAPAGE_AUTOCORR_QUOTE_PB_ENDQUOTE" id="bm_id6838282" localize="false"/>
+<paragraph role="heading" id="hd_id3159233" xml-lang="en-US" level="3" l10n="U" oldref="13">End quote</paragraph>
+<paragraph role="paragraph" id="par_id3147008" xml-lang="en-US" l10n="U" oldref="14"><ahelp hid="OFFMGR:PUSHBUTTON:RID_OFAPAGE_AUTOCORR_QUOTE:PB_SGL_ENDQUOTE">Select the <link href="text/shared/01/04100000.xhp" name="special character">special character</link> that will automatically replace the current closing quotation mark in your document when you choose <emph>Format - AutoCorrect - Apply</emph>.</ahelp></paragraph>
+<bookmark xml-lang="en-US" branch="hid/OFFMGR:PUSHBUTTON:RID_OFAPAGE_AUTOCORR_QUOTE:PB_DBL_STD" id="bm_id3157863" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/OFFMGR:PUSHBUTTON:RID_OFAPAGE_AUTOCORR_QUOTE:PB_SGL_STD" id="bm_id3153682" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/svx_PushButton_RID_OFAPAGE_AUTOCORR_QUOTE_PB_SGL_STD" id="bm_id4603106" localize="false"/>
+<bookmark xml-lang="en-US" branch="hid/svx_PushButton_RID_OFAPAGE_AUTOCORR_QUOTE_PB_DBL_STD" id="bm_id3145542" localize="false"/>
+<paragraph role="heading" id="hd_id3147089" xml-lang="en-US" level="3" l10n="U" oldref="19">Default</paragraph>
+<paragraph role="paragraph" id="par_id3166460" xml-lang="en-US" l10n="U" oldref="20"><ahelp hid="OFFMGR:PUSHBUTTON:RID_OFAPAGE_AUTOCORR_QUOTE:PB_SGL_STD">Resets the quotation marks to the default symbols.</ahelp></paragraph>
+</body>
+</helpdocument>

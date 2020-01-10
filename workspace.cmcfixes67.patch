@@ -1,0 +1,278 @@
+diff -r dd90334f8680 configure.in
+--- a/configure.in	Mon Nov 16 21:01:44 2009 +0100
++++ b/configure.in	Tue Nov 24 13:21:57 2009 +0000
+@@ -2974,7 +2974,7 @@
+         AC_MSG_RESULT([checked (ecj)])
+         #TODO: what's to do here? some switch to do 1.5 compiling?
+         JAVAFLAGS="-source 1.5 -target 1.5"
+-        _gij_longver="50000"
++        _gij_longver="40200"
+     fi
+ fi
+ 
+@@ -3029,7 +3029,7 @@
+ if test "$SOLAR_JAVA" != ""; then
+     dnl first check if we have been asked to autodetect JAVA_HOME with a recent gij
+     if test "$JDK" == "gcj" -a -z "$JAVA_HOME"; then
+-      if test "x$with_jdk_home" = "x" -a "$_gij_longver" -ge "50000"; then
++      if test "x$with_jdk_home" = "x" -a "$_gij_longver" -ge "40200"; then
+         cat > findhome.java <<_ACEOF
+ [import java.io.File;
+ 
+@@ -3069,7 +3069,7 @@
+     fi
+ 
+     dnl second sanity check JAVA_HOME if possible
+-    if test "$JDK" != "gcj" -o "$_gij_longver" -ge "50000"; then
++    if test "$JDK" != "gcj" -o "$_gij_longver" -ge "40200"; then
+       # check if JAVA_HOME was (maybe incorrectly?) set automatically to /usr
+       if test "$JAVA_HOME" = "/usr" -a "x$with_jdk_home" = "x"; then
+ 
+@@ -3843,25 +3843,14 @@
+         ], []
+     )
+     AC_MSG_CHECKING([whether db is at least 4.1])
+-    for v in `seq 1 7`; do
+-       AC_TRY_RUN([
++    AC_TRY_RUN([
+ #include <db.h>
+ 
+ int main(int argc, char **argv) {
+-       if(DB_VERSION_MAJOR == 4 && DB_VERSION_MINOR == $v) return 0;
++       if(DB_VERSION_MAJOR > 4 || (DB_VERSION_MAJOR == 4 && DB_VERSION_MINOR >= 1)) return 0;
+        else return 1;
+ }
+-       ], [DB_VERSION_MINOR=$v], [])
+-    done
+-    if test "$DB_VERSION_MINOR" -gt "1"; then
+-       AC_MSG_RESULT([OK])
+-       DB_VERSION=4.$DB_VERSION_MINOR
+-    else
+-       AC_MSG_ERROR([no. you need at least db 4.1])
+-    fi
+-    # does not work :/
+-    #AC_CHECK_LIB(db, db_create, [],
+-    #  [AC_MSG_ERROR([db library not installed or functional])], [])
++    ], [AC_MSG_RESULT([yes])], [AC_MSG_ERROR([no. you need at least db 4.1])])
+     AC_HAVE_LIBRARY(db, [],
+       [AC_MSG_ERROR([db not installed or functional])], [])
+     SCPDEFS="$SCPDEFS -DSYSTEM_DB"
+@@ -5925,37 +5914,74 @@
+ if test "$ENABLE_MEDIAWIKI" = "YES" -o "$ENABLE_REPORTBUILDER" = "YES"; then
+   AC_MSG_CHECKING([which Apache commons-* libs to use])
+   if test "$with_system_apache_commons" = "yes"; then
+-       SYSTEM_APACHE_COMMONS=YES
+-       AC_MSG_RESULT([external])
++    SYSTEM_APACHE_COMMONS=YES
++    AC_MSG_RESULT([external])
+     if test "$ENABLE_MEDIAWIKI" = "YES"; then
+-        if test -z "$COMMONS_CODEC_JAR"; then
+-                COMMONS_CODEC_JAR=/usr/share/java/commons-codec-1.3.jar
+-        fi
+-   AC_CHECK_FILE($COMMONS_CODEC_JAR, [],
+-        [AC_MSG_ERROR(commons-codec.jar not found.)], [])
+-        if test -z "$COMMONS_LANG_JAR"; then
+-                COMMONS_LANG_JAR=/usr/share/java/commons-lang-2.3.jar
+-        fi
+-   AC_CHECK_FILE($COMMONS_LANG_JAR, [],
+-        [AC_MSG_ERROR(commons-lang.jar not found.)], [])
+-        if test -z "$COMMONS_HTTPCLIENT_JAR"; then
+-                COMMONS_HTTPCLIENT_JAR=/usr/share/java/commons-httpclient-3.1.jar
+-        fi
+-   AC_CHECK_FILE($COMMONS_HTTPCLIENT_JAR, [],
+-        [AC_MSG_ERROR(commons-httpclient.jar not found.)], [])
++      if test -z $COMMONS_CODEC_JAR; then
++        AC_CHECK_FILE(/usr/share/java/commons-codec-1.3.jar, 
++          [ COMMONS_CODEC_JAR=/usr/share/java/commons-codec-1.3.jar ],
++          [
++            AC_CHECK_FILE(/usr/share/java/commons-codec.jar, 
++              [ COMMONS_CODEC_JAR=/usr/share/java/commons-codec.jar ],
++              [AC_MSG_ERROR(commons-codec.jar replacement not found.)]
++            )
++          ]
++        )
++      else
++        AC_CHECK_FILE($COMMONS_CODEC_JAR, [],
++             [AC_MSG_ERROR(commons-codec.jar not found.)], [])
++      fi
++
++      if test -z $COMMONS_LANG_JAR; then
++        AC_CHECK_FILE(/usr/share/java/commons-lang-2.3.jar, 
++          [ COMMONS_LANG_JAR=/usr/share/java/commons-lang-2.3.jar ],
++          [
++            AC_CHECK_FILE(/usr/share/java/commons-lang.jar, 
++              [ COMMONS_LANG_JAR=/usr/share/java/commons-lang.jar ],
++              [AC_MSG_ERROR(commons-lang.jar replacement not found.)]
++            )
++          ]
++        )
++      else
++        AC_CHECK_FILE($COMMONS_LANG_JAR, [],
++             [AC_MSG_ERROR(commons-lang.jar not found.)], [])
++      fi
++
++      if test -z $COMMONS_HTTPCLIENT_JAR; then
++        AC_CHECK_FILE(/usr/share/java/commons-httpclient-3.1.jar, 
++          [ COMMONS_HTTPCLIENT_JAR=/usr/share/java/commons-httpclient-3.1.jar ],
++          [
++            AC_CHECK_FILE(/usr/share/java/commons-httpclient.jar, 
++              [ COMMONS_HTTPCLIENT_JAR=/usr/share/java/commons-httpclient.jar ],
++              [AC_MSG_ERROR(commons-httpclient.jar replacement not found.)]
++            )
++          ]
++        )
++      else
++        AC_CHECK_FILE($COMMONS_HTTPCLIENT_JAR, [],
++             [AC_MSG_ERROR(commons-httpclient.jar not found.)], [])
++      fi
+     fi
+     if test "$ENABLE_MEDIAWIKI" = "YES" -o "$ENABLE_REPORTBUILDER" = "YES"; then
+-        if test -z "$COMMONS_LOGGING_JAR"; then
+-                COMMONS_LOGGING_JAR=/usr/share/java/commons-logging-1.1.1.jar
+-        fi
+-   AC_CHECK_FILE($COMMONS_LOGGING_JAR, [],
+-        [AC_MSG_ERROR(commons-logging.jar not found.)], [])
+-
++      if test -z $COMMONS_LOGGING_JAR; then
++        AC_CHECK_FILE(/usr/share/java/commons-logging-1.1.1.jar, 
++          [ COMMONS_LOGGING_JAR=/usr/share/java/commons-logging-1.1.1.jar ],
++          [
++            AC_CHECK_FILE(/usr/share/java/commons-logging.jar, 
++              [ COMMONS_LOGGING_JAR=/usr/share/java/commons-logging.jar ],
++              [AC_MSG_ERROR(commons-logging.jar replacement not found.)]
++            )
++          ]
++        )
++      else
++        AC_CHECK_FILE($COMMONS_LOGGING_JAR, [],
++             [AC_MSG_ERROR(commons-logging.jar not found.)], [])
++      fi
+     fi
+   else
+-        AC_MSG_RESULT([internal])
+-        SYSTEM_APACHE_COMMONS=NO
+-        BUILD_TYPE="$BUILD_TYPE APACHE_COMMONS TOMCAT"
++    AC_MSG_RESULT([internal])
++    SYSTEM_APACHE_COMMONS=NO
++    BUILD_TYPE="$BUILD_TYPE APACHE_COMMONS TOMCAT"
+   fi
+ fi
+ AC_SUBST(SYSTEM_APACHE_COMMONS)
+diff -r dd90334f8680 transex3/source/help/MANIFEST.MF
+--- a/transex3/source/help/MANIFEST.MF	Mon Nov 16 21:01:44 2009 +0100
++++ /dev/null	Thu Jan 01 00:00:00 1970 +0000
+@@ -1,2 +0,0 @@
+-RegistrationClassName: com.sun.star.help.HelpComponent
+-Class-Path: lucene-core-2.3.jar lucene-analyzers-2.3.jar
+diff -r dd90334f8680 transex3/source/help/makefile.mk
+--- a/transex3/source/help/makefile.mk	Mon Nov 16 21:01:44 2009 +0100
++++ b/transex3/source/help/makefile.mk	Tue Nov 24 13:21:57 2009 +0000
+@@ -104,36 +104,17 @@
+ 	$(CLASSDIR)$/$(PACKAGE)$/HelpIndexerTool.class			        \
+ 	$(CLASSDIR)$/$(PACKAGE)$/HelpFileDocument.class
+ 
+-
+-#	$(CLASSDIR)$/$(PACKAGE)$/HelpSearch.class			        \
+-#	$(CLASSDIR)$/$(PACKAGE)$/HelpIndexer.class			        \
+-#	$(CLASSDIR)$/$(PACKAGE)$/HelpComponent.class			        \
+-#	$(CLASSDIR)$/$(PACKAGE)$/HelpFileDocument.class
+-
+-#JARFILES  = ridl.jar jurt.jar unoil.jar juh.jar
+ .IF "$(SYSTEM_LUCENE)" == "YES"
+ CLASSPATH!:=$(CLASSPATH)$(PATH_SEPERATOR)$(LUCENE_CORE_JAR)$(PATH_SEPERATOR)$(LUCENE_ANALYZERS_JAR)
+-COMP=fix_system_lucene
+ .ELSE
+ JARFILES += lucene-core-2.3.jar lucene-analyzers-2.3.jar
+ .ENDIF
+ JAVAFILES = $(subst,$(CLASSDIR)$/$(PACKAGE)$/, $(subst,.class,.java $(JAVACLASSFILES)))
+-#JAVAFILES = $(JAVACLASSFILES) 
+ 
+ JARCLASSDIRS	   = $(PACKAGE)/*
+ JARTARGET	       = HelpIndexerTool.jar
+ JARCOMPRESS        = TRUE 
+-#CUSTOMMANIFESTFILE = MANIFEST.MF 
+  
+ # --- Targets ------------------------------------------------------
+ 
+ .INCLUDE :  target.mk
+-
+-.IF "$(JARTARGETN)"!=""
+-$(JARTARGETN) : $(COMP)
+-.ENDIF
+-
+-fix_system_lucene:
+-	@echo "Fix Java Class-Path entry for Lucene libraries from system."
+-	@$(SED) -r -e "s#^(Class-Path:).*#\1 file://$(LUCENE_CORE_JAR) file://$(LUCENE_ANALYZERS_JAR)#" \
+-    -i ../../$(INPATH)/class/HelpLinker/META-INF/MANIFEST.MF
+diff -r dd90334f8680 ucb/source/ucp/gio/gio_mount.cxx
+--- a/ucb/source/ucp/gio/gio_mount.cxx	Mon Nov 16 21:01:44 2009 +0100
++++ b/ucb/source/ucp/gio/gio_mount.cxx	Tue Nov 24 13:21:57 2009 +0000
+@@ -68,7 +68,7 @@
+ using namespace com::sun::star;
+ 
+ static void ooo_mount_operation_ask_password (GMountOperation *op,
+-    const char *message, const char *default_user, 
++    const char * /*message*/, const char *default_user, 
+     const char *default_domain, GAskPasswordFlags flags)
+ {
+     uno::Reference< task::XInteractionHandler > xIH;
+diff -r dd90334f8680 xmlhelp/source/com/sun/star/help/MANIFEST.MF
+--- a/xmlhelp/source/com/sun/star/help/MANIFEST.MF	Mon Nov 16 21:01:44 2009 +0100
++++ b/xmlhelp/source/com/sun/star/help/MANIFEST.MF	Tue Nov 24 13:21:57 2009 +0000
+@@ -1,2 +1,1 @@
+ RegistrationClassName: com.sun.star.help.HelpComponent
+-Class-Path: lucene-core-2.3.jar lucene-analyzers-2.3.jar
+diff -r dd90334f8680 xmlhelp/source/com/sun/star/help/makefile.mk
+--- a/xmlhelp/source/com/sun/star/help/makefile.mk	Mon Nov 16 21:01:44 2009 +0100
++++ b/xmlhelp/source/com/sun/star/help/makefile.mk	Tue Nov 24 13:21:57 2009 +0000
+@@ -35,11 +35,10 @@
+ 
+ .INCLUDE : settings.mk
+  
+-
+ JAVACLASSFILES = \
+ 	$(CLASSDIR)$/$(PACKAGE)$/HelpSearch.class			        \
+ 	$(CLASSDIR)$/$(PACKAGE)$/HelpComponent.class			        \
+-	$(CLASSDIR)$/$(PACKAGE)$/HelpIndexer.class
++	$(CLASSDIR)$/$(PACKAGE)$/HelpIndexer.class			        
+ 
+ TRANSEX3FILES = \
+ 		$(SOLARBINDIR)$/help$/$(PACKAGE)$/HelpIndexerTool.class		\
+@@ -47,32 +46,32 @@
+ 
+ ADDFILES = $(subst,$(SOLARBINDIR)$/help,$(CLASSDIR) $(TRANSEX3FILES))
+ 
+-JARFILES  = ridl.jar jurt.jar unoil.jar juh.jar HelpIndexerTool.jar
++JARFILES  = ridl.jar jurt.jar unoil.jar juh.jar 
+ .IF "$(SYSTEM_LUCENE)" == "YES"
+ XCLASSPATH!:=$(XCLASSPATH)$(PATH_SEPERATOR)$(LUCENE_CORE_JAR)$(PATH_SEPERATOR)$(LUCENE_ANALYZERS_JAR)
+-COMP=fix_system_lucene
++JARCLASSPATH = file://$(LUCENE_CORE_JAR) file://$(LUCENE_ANALYZERS_JAR)
+ .ELSE
+ JARFILES += lucene-core-2.3.jar lucene-analyzers-2.3.jar
++JARCLASSPATH = lucene-core-2.3.jar lucene-analyzers-2.3.jar
+ .ENDIF
+   
+ JARTARGET	   	   = LuceneHelpWrapper.jar
+ JARCOMPRESS        = TRUE 
+-CUSTOMMANIFESTFILE = MANIFEST.MF 
++CUSTOMMANIFESTFILE = MANIFEST.MF
+  
+ # --- Targets ------------------------------------------------------
+ 
+ .INCLUDE :  target.mk
+ 
+ .IF "$(JARTARGETN)"!=""
++$(JAVATARGET) : $(ADDFILES)
+ $(JARTARGETN) : $(ADDFILES)
+-$(JARTARGETN) : $(COMP)
+ .ENDIF
+ 
+ $(ADDFILES) : $(SOLARBINDIR)$/help$/$(PACKAGE)$/$$(@:f)
+ 	$(MKDIRHIER) $(@:d)	
+ 	$(COPY) $< $@
+ 
+-
+ fix_system_lucene:
+ 	@echo "Fix Java Class-Path entry for Lucene libraries from system."
+ 	@$(SED) -r -e "s#^(Class-Path:).*#\1 file://$(LUCENE_CORE_JAR) file://$(LUCENE_ANALYZERS_JAR)#" \

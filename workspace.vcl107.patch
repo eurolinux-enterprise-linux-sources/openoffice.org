@@ -1,0 +1,27 @@
+diff -r 170d9f615c3e vcl/source/window/accmgr.cxx
+--- a/vcl/source/window/accmgr.cxx	Wed Oct 28 10:10:41 2009 +0000
++++ b/vcl/source/window/accmgr.cxx	Thu Oct 29 12:30:32 2009 +0000
+@@ -83,6 +83,23 @@
+     if ( !mpAccelList )
+         return;
+ 
++    //e.g. #i90599#. Someone starts typing a sequence in a dialog, but doesn't
++    //end it, and then closes the dialog, deleting the accelerators. So if
++    //we're removing an accelerator that a sub-accelerator which is in the
++    //sequence list, throw away the entire sequence 
++    if ( mpSequenceList )
++    {
++        for (USHORT i = 0; i < pAccel->GetItemCount(); ++i)
++        {
++            Accelerator* pSubAccel = pAccel->GetAccel(pAccel->GetItemId(i));
++            if ( mpSequenceList->GetPos( pSubAccel ) != LIST_ENTRY_NOTFOUND )
++            {
++                EndSequence( true );
++                break;
++            }
++        }
++    }
++
+     // Raus damit
+     mpAccelList->Remove( pAccel );
+ }

@@ -1,0 +1,70 @@
+--- a/svx/source/editeng/impedit.cxx	2010-02-26 13:50:40.000000000 +0000
++++ b/svx/source/editeng/impedit.cxx	2010-03-02 15:10:15.000000000 +0000
+@@ -1497,7 +1497,7 @@
+ 
+ void ImpEditView::ShowDDCursor( const Rectangle& rRect )
+ {
+-	if ( !pDragAndDropInfo->bVisCursor )
++	if ( pDragAndDropInfo && !pDragAndDropInfo->bVisCursor )
+ 	{
+ 		if ( pOutWin->GetCursor() )
+ 			pOutWin->GetCursor()->Hide();
+@@ -1552,6 +1552,8 @@
+ 
+     vos::OGuard aVclGuard( Application::GetSolarMutex() );
+ 
++    pDragAndDropInfo = NULL;
++
+     Point aMousePosPixel( rDGE.DragOriginX, rDGE.DragOriginY );
+ 
+     EditSelection aCopySel( GetEditSelection() );
+@@ -1725,7 +1727,7 @@
+ 
+     DBG_ASSERT( pDragAndDropInfo, "Drop - No Drag&Drop info?!" );
+ 
+-    if ( pDragAndDropInfo->bDragAccepted )
++    if ( pDragAndDropInfo && pDragAndDropInfo->bDragAccepted )
+     {
+ 		pEditEngine->GetBeginDropHdl().Call(GetEditViewPtr());
+ 	    BOOL bChanges = FALSE;
+@@ -1825,7 +1827,7 @@
+ 
+     HideDDCursor();
+ 
+-	if ( !pDragAndDropInfo->bStarterOfDD )
++	if ( pDragAndDropInfo && !pDragAndDropInfo->bStarterOfDD )
+ 	{
+ 		delete pDragAndDropInfo;
+ 		pDragAndDropInfo = NULL;
+@@ -1845,7 +1847,7 @@
+     {
+ //        sal_Int8 nSupportedActions = bReadOnly ? datatransfer::dnd::DNDConstants::ACTION_COPY : datatransfer::dnd::DNDConstants::ACTION_COPY_OR_MOVE;
+ 
+-        if ( pDragAndDropInfo->bHasValidData /* && ( nSupportedActions & rDTDE.DropAction ) MT: Default = 0x80 ?! */ )
++        if ( pDragAndDropInfo && pDragAndDropInfo->bHasValidData /* && ( nSupportedActions & rDTDE.DropAction ) MT: Default = 0x80 ?! */ )
+         {
+             bAccept = sal_True;
+ 
+@@ -1965,7 +1967,8 @@
+     if ( !bAccept )
+     {
+         HideDDCursor();
+-        pDragAndDropInfo->bDragAccepted = FALSE;
++        if (pDragAndDropInfo)
++            pDragAndDropInfo->bDragAccepted = FALSE;
+         rDTDE.Context->rejectDrag();
+     }
+ }
+--- a/linguistic/source/dicimp.cxx	2009-10-19 12:29:09.000000000 +0100
++++ b/linguistic/source/dicimp.cxx	2009-10-19 12:30:08.000000000 +0100
+@@ -232,8 +232,8 @@
+         BOOL bExists = FileExists( rMainURL );
+ 		if( !bExists )
+ 		{
+-			// save new dictionaries with in 6.0 Format (uses UTF8)
+-			nDicVersion	 = 6;
++			// save new dictionaries with in Format 7 (UTF8 plain text)
++			nDicVersion	 = 7;
+ 
+             //! create physical representation of an **empty** dictionary
+             //! that could be found by the dictionary-list implementation

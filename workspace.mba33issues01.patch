@@ -1,0 +1,16 @@
+diff -r 03068afc23c6 sw/source/ui/docvw/postit.cxx
+--- a/sw/source/ui/docvw/postit.cxx	Sun Apr 25 15:43:24 2010 +0100
++++ b/sw/source/ui/docvw/postit.cxx	Wed Apr 28 11:31:24 2010 +0100
+@@ -730,12 +730,6 @@
+ 	mpOutliner->SetUpdateMode( TRUE );
+ 	Rescale();
+ 
+-	OutputDevice* pDev = aShell->GetDoc()->getReferenceDevice(TRUE);
+-	if ( pDev )
+-	{
+-		mpOutliner->SetRefDevice( pDev );
+-	}
+-
+ 	mpOutlinerView = new OutlinerView ( mpOutliner, mpPostItTxt );
+ 	mpOutlinerView->SetBackgroundColor(COL_TRANSPARENT);
+ 	mpOutliner->InsertView(mpOutlinerView );

@@ -1,0 +1,13 @@
+diff -r 3ee4cb3a17dd svx/source/editeng/editeng.cxx
+--- a/svx/source/editeng/editeng.cxx	Fri Oct 30 09:44:02 2009 +0000
++++ b/svx/source/editeng/editeng.cxx	Fri Oct 30 17:46:26 2009 +0000
+@@ -1783,7 +1783,8 @@
+ 					ContentNode* pNode = pImpEditEngine->GetEditDoc().GetObject( n );
+ 					pNode->CreateWrongList();
+ 				}
+-				pImpEditEngine->StartOnlineSpellTimer();
++				if (pImpEditEngine->IsFormatted())
++					pImpEditEngine->StartOnlineSpellTimer();
+ 			}
+ 			else
+ 			{

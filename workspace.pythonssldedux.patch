@@ -1,0 +1,36 @@
+diff -r ccdb8c85656c scripting/source/pyprov/mailmerge.py
+--- a/scripting/source/pyprov/mailmerge.py	Wed Oct 28 09:17:36 2009 +0000
++++ b/scripting/source/pyprov/mailmerge.py	Tue Dec 01 13:21:47 2009 +0000
+@@ -85,8 +85,8 @@
+ 			self.server.starttls()
+ 			self.server.ehlo()
+ 
+-		user = xAuthenticator.getUserName()
+-		password = xAuthenticator.getPassword()
++		user = xAuthenticator.getUserName().encode('ascii')
++		password = xAuthenticator.getPassword().encode('ascii')
+ 		if user != '':
+ 			if dbg:
+ 				print >> sys.stderr, 'Logging in, username of', user
+@@ -234,8 +234,8 @@
+ 			self.server = imaplib.IMAP4(server, port)
+ 		print >> sys.stderr, "AFTER"
+ 			
+-		user = xAuthenticator.getUserName()
+-		password = xAuthenticator.getPassword()
++		user = xAuthenticator.getUserName().encode('ascii')
++		password = xAuthenticator.getPassword().encode('ascii')
+ 		if user != '':
+ 			if dbg:
+ 				print >> sys.stderr, 'Logging in, username of', user
+@@ -302,8 +302,8 @@
+ 			self.server = poplib.POP3(server, port)
+ 		print >> sys.stderr, "AFTER"
+ 			
+-		user = xAuthenticator.getUserName()
+-		password = xAuthenticator.getPassword()
++		user = xAuthenticator.getUserName().encode('ascii')
++		password = xAuthenticator.getPassword().encode('ascii')
+ 		if dbg:
+ 			print >> sys.stderr, 'Logging in, username of', user
+ 		self.server.user(user)

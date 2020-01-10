@@ -1,0 +1,131 @@
+diff -r b9c9dd11b0a1 -r a92f79b9fc30 bridges/source/cpp_uno/gcc3_linux_s390x/cpp2uno.cxx
+--- a/bridges/source/cpp_uno/gcc3_linux_s390x/cpp2uno.cxx	Thu Jan 07 15:14:24 2010 +0100
++++ b/bridges/source/cpp_uno/gcc3_linux_s390x/cpp2uno.cxx	Mon Jan 18 11:56:59 2010 +0000
+@@ -522,15 +522,21 @@
+ 
+     switch( aType )
+     {
+-        case typelib_TypeClass_VOID:
+         case typelib_TypeClass_BOOLEAN:
+         case typelib_TypeClass_BYTE:
++            nRegReturn[0] = (unsigned long)(*(unsigned char *)nRegReturn);
++            break;
+         case typelib_TypeClass_CHAR:
+         case typelib_TypeClass_UNSIGNED_SHORT:
+         case typelib_TypeClass_SHORT:
++            nRegReturn[0] = (unsigned long)(*(unsigned short *)nRegReturn);
++            break;
+         case typelib_TypeClass_ENUM:
+         case typelib_TypeClass_UNSIGNED_LONG:
+         case typelib_TypeClass_LONG:
++            nRegReturn[0] = (unsigned long)(*(unsigned int *)nRegReturn);
++            break;
++        case typelib_TypeClass_VOID:
+         default:
+             break;
+         case typelib_TypeClass_FLOAT:
+diff -r b9c9dd11b0a1 -r a92f79b9fc30 bridges/source/cpp_uno/gcc3_linux_s390x/uno2cpp.cxx
+--- a/bridges/source/cpp_uno/gcc3_linux_s390x/uno2cpp.cxx	Thu Jan 07 15:14:24 2010 +0100
++++ b/bridges/source/cpp_uno/gcc3_linux_s390x/uno2cpp.cxx	Mon Jan 18 11:56:59 2010 +0000
+@@ -60,19 +60,21 @@
+     {
+     case typelib_TypeClass_HYPER:
+     case typelib_TypeClass_UNSIGNED_HYPER:
++            *pRegisterReturn = r2;
++            break;
+     case typelib_TypeClass_LONG:
+     case typelib_TypeClass_UNSIGNED_LONG:
+     case typelib_TypeClass_ENUM:
+-            *pRegisterReturn = r2;
++            *(unsigned int*)pRegisterReturn = (unsigned int)r2;
+             break;
+     case typelib_TypeClass_CHAR:
+     case typelib_TypeClass_SHORT:
+     case typelib_TypeClass_UNSIGNED_SHORT:
+-            *pRegisterReturn = (unsigned short)r2;
++            *(unsigned short*)pRegisterReturn = (unsigned short)r2;
+             break;
+     case typelib_TypeClass_BOOLEAN:
+     case typelib_TypeClass_BYTE:
+-            *pRegisterReturn = (unsigned char)r2;
++            *(unsigned char*)pRegisterReturn = (unsigned char)r2;
+             break;
+     case typelib_TypeClass_FLOAT:
+             *reinterpret_cast<float *>( pRegisterReturn ) = f0;
+diff -r 0ce3ce7034ec -r 5e39d90161b3 bridges/source/cpp_uno/gcc3_linux_s390/except.cxx
+--- a/bridges/source/cpp_uno/gcc3_linux_s390/except.cxx	Mon Jan 18 15:37:42 2010 +0000
++++ b/bridges/source/cpp_uno/gcc3_linux_s390/except.cxx	Tue Jan 19 11:25:34 2010 +0000
+@@ -137,8 +137,8 @@
+     OUString const & unoName = *(OUString const *)&pTypeDescr->aBase.pTypeName;
+ 
+     MutexGuard guard( m_mutex );
+-    t_rtti_map::const_iterator iFind( m_rttis.find( unoName ) );
+-    if (iFind == m_rttis.end())
++    t_rtti_map::const_iterator iRttiFind( m_rttis.find( unoName ) );
++    if (iRttiFind == m_rttis.end())
+     {
+         // RTTI symbol
+         OStringBuffer buf( 64 );
+@@ -202,7 +202,7 @@
+     }
+     else
+     {
+-        rtti = iFind->second;
++        rtti = iRttiFind->second;
+     }
+ 
+     return rtti;
+diff -r 0ce3ce7034ec -r 5e39d90161b3 bridges/source/cpp_uno/gcc3_linux_s390x/cpp2uno.cxx
+--- a/bridges/source/cpp_uno/gcc3_linux_s390x/cpp2uno.cxx	Mon Jan 18 15:37:42 2010 +0000
++++ b/bridges/source/cpp_uno/gcc3_linux_s390x/cpp2uno.cxx	Tue Jan 19 11:25:34 2010 +0000
+@@ -491,7 +491,7 @@
+ long privateSnippetExecutor(long r2, long r3, long r4, long r5, long r6, long firstonstack)
+ {
+     register long r0 asm("r0");
+-    sal_uInt32 nOffsetAndIndex = r0;
++    sal_uInt64 nOffsetAndIndex = r0;
+ 
+     long sp = (long)&firstonstack;
+ 
+diff -r 0ce3ce7034ec -r 5e39d90161b3 bridges/source/cpp_uno/gcc3_linux_s390x/except.cxx
+--- a/bridges/source/cpp_uno/gcc3_linux_s390x/except.cxx	Mon Jan 18 15:37:42 2010 +0000
++++ b/bridges/source/cpp_uno/gcc3_linux_s390x/except.cxx	Tue Jan 19 11:25:34 2010 +0000
+@@ -138,8 +138,8 @@
+     OUString const & unoName = *(OUString const *)&pTypeDescr->aBase.pTypeName;
+ 
+     MutexGuard guard( m_mutex );
+-    t_rtti_map::const_iterator iFind( m_rttis.find( unoName ) );
+-    if (iFind == m_rttis.end())
++    t_rtti_map::const_iterator iRttiFind( m_rttis.find( unoName ) );
++    if (iRttiFind == m_rttis.end())
+     {
+         // RTTI symbol
+         OStringBuffer buf( 64 );
+@@ -203,7 +203,7 @@
+     }
+     else
+     {
+-        rtti = iFind->second;
++        rtti = iRttiFind->second;
+     }
+ 
+     return rtti;
+diff -r 0ce3ce7034ec -r 5e39d90161b3 bridges/source/cpp_uno/gcc3_linux_s390x/uno2cpp.cxx
+--- a/bridges/source/cpp_uno/gcc3_linux_s390x/uno2cpp.cxx	Mon Jan 18 15:37:42 2010 +0000
++++ b/bridges/source/cpp_uno/gcc3_linux_s390x/uno2cpp.cxx	Tue Jan 19 11:25:34 2010 +0000
+@@ -92,7 +92,6 @@
+ 
+ #define INSERT_FLOAT( pSV, nr, pFPR, pDS ) \
+     { \
+-        float tmp = *reinterpret_cast<float *>( pSV ); \
+         if ( nr < s390x::MAX_SSE_REGS ) \
+         { \
+                 pFPR[nr++] = *reinterpret_cast<float *>( pSV ); \
+@@ -423,7 +422,6 @@
+     // is my surrogate
+     bridges::cpp_uno::shared::UnoInterfaceProxy * pThis 
+             = static_cast< bridges::cpp_uno::shared::UnoInterfaceProxy *> (pUnoI);
+-    typelib_InterfaceTypeDescription * pTypeDescr = pThis->pTypeDescr;
+     
+     switch (pMemberDescr->eTypeClass)
+     {
